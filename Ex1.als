@@ -3,7 +3,7 @@ sig Node {}
 sig Member in Node {
   nxt: lone Member,
   qnxt : Node -> lone Node,
-  //outbox: set Msg
+  outbox: set Msg
 }
 
 one sig Leader in Member {
