@@ -90,15 +90,17 @@ fact {
     (n2 -> n1) in Leader.lnxt)
 }
 
-// the leader queue functions as a queue
+// the leader queue functions as a queue (maybe a better name for this fact?)
 fact {
-  all n1, n2: Node | 
+  all n1, n2 : Node | 
     (n1 -> n2) in Leader.lnxt implies 
-      ((lone n3 : Node |
-        (n2 -> n3) in Leader.lnxt))
+      ((one n3 : Node |
+        (n2 -> n3) in Leader.lnxt)
+      ||
+      (n2 in Leader))
 }
 
-// the leader queue ends in the leader
+// the leader is the end of the queue
 fact {
   (no n : Node |
     (Leader -> n) in Leader.lnxt)
