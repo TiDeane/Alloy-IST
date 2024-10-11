@@ -120,6 +120,7 @@ fact {
 fact {
   all p : PendingMsg |
     p.rcvrs = none
+  // why is this different from "no PendingMsg.rcvrs" ?
 }
 
 // a sent message isn't in any member's outbox
@@ -135,6 +136,14 @@ fact {
 
 
 //-------------------------------------------------------------------//
+
+fun visualizeMemberQ[] : Node -> lone Node {
+  Member.qnxt
+}
+
+fun visualizeLeaderQ[] : Node -> lone Node {
+  Leader.lnxt
+}
 
 
 run {#Node >= 5
