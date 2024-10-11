@@ -29,21 +29,26 @@ sig PendingMsg extends Msg {}
 
 // members form a ring
 fact {
-  all m : Member |
-    m in m.^nxt
+  all m1, m2 : Member |
+    m2 in m1.^nxt
 }
+
 
 // a member may only point to itself if it's the only member 
 fact {
-  all m : Member |
-    (#Member > 1
-    implies 
+  // should #Member > 1 be inside or outside the "all" ?
+  #Member > 1 implies
+  (all m : Member |
     m.nxt != m)
 }
 
 // no back and forth loops 
 fact {
-  #Member > 1 implies nxt != ~nxt
+  // should #Member > 1 be inside or outside the "all" ?
+  #Member > 1 implies
+  (all m : Member |
+    m.nxt != m.~nxt)
+  // why is this different from (#Member > 1 implies nxt != ~nxt) ?
 }
 
 
@@ -52,17 +57,54 @@ fact {
 
 // nodes in the leader queue are Members and LQueue
 fact {
-  //TODO
+  all n1, n2 : Node |
+    (n1 -> n2) in Leader.lnxt
+    implies
+    (n1 in LQueue && n2 in Member)
 }
 
-// the leader queue ends in the leader
+// every LQueue node is part of the leader queue
 fact {
-  //TODO
+  all lq : LQueue |
+    one n : Node |
+      (lq -> n) in Leader.lnxt
 }
 
 // nodes only appear in the leader queue once
 fact {
-  //TODO
+  all n1 : Node | 
+    lone n2 : Node | 
+      (n2 -> n1) in Leader.lnxt
+}
+
+// nodes in the leader queue can't point to themselves
+fact {
+  no n1 : Node |
+    (n1 -> n1) in Leader.lnxt
+}
+
+// no back and forth loops
+fact {
+  no n1, n2 : Node |
+    ((n1 -> n2) in Leader.lnxt &&
+    (n2 -> n1) in Leader.lnxt)
+}
+
+// the leader queue functions as a queue
+fact {
+  all n1, n2: Node | 
+    (n1 -> n2) in Leader.lnxt implies 
+      ((lone n3 : Node |
+        (n2 -> n3) in Leader.lnxt))
+}
+
+// the leader queue ends in the leader
+fact {
+  (no n : Node |
+    (Leader -> n) in Leader.lnxt)
+  &&
+  (one n : Node |
+    (n -> Leader) in Leader.lnxt)
 }
 
 
@@ -90,6 +132,8 @@ fact {
 }
 
 // at least two members have non-empty member queues
+// note: I think this shouldn't be a fact, and instead should be
+// part of the run command
 fact {
   some m1, m2 : Member | 
     m1 != m2 && 
@@ -132,7 +176,7 @@ fact {
 
 // note: intuitively, a sent message has been received by every member...
 // but considering nodes can stop being members, there can be static states
-// where a non member received a SentMsg
+// where a non member received a SentMsg and a (new) member didn't
 
 
 //-------------------------------------------------------------------//
@@ -147,7 +191,7 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 
 
 run {#Node >= 5
-     #LQueue > 0
+     #LQueue >= 1
      #SentMsg >= 1
      #SendingMsg >= 1
      #PendingMsg >= 1}
