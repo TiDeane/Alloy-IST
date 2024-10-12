@@ -37,7 +37,8 @@ fact {
 // a member may only point to itself if it's the only member 
 fact {
   // should #Member > 1 be inside or outside the "all" ?
-  #Member > 1 implies
+  #Member > 1
+  implies
   (all m : Member |
     m.nxt != m)
 }
@@ -45,7 +46,8 @@ fact {
 // no back and forth loops 
 fact {
   // should #Member > 1 be inside or outside the "all" ?
-  #Member > 1 implies
+  #Member > 1
+  implies
   (all m : Member |
     m.nxt != m.~nxt)
   // why is this different from (#Member > 1 implies nxt != ~nxt) ?
@@ -93,11 +95,12 @@ fact {
 // the leader queue functions as a queue (maybe a better name for this fact?)
 fact {
   all n1, n2 : Node | 
-    (n1 -> n2) in Leader.lnxt implies 
-      ((one n3 : Node |
-        (n2 -> n3) in Leader.lnxt)
-      ||
-      (n2 in Leader))
+    (n1 -> n2) in Leader.lnxt
+    implies 
+    ((one n3 : Node |
+      (n2 -> n3) in Leader.lnxt)
+    or
+    (n2 in Leader))
 }
 
 // the leader is the end of the queue
@@ -105,7 +108,7 @@ fact {
   (no n : Node |
     (Leader -> n) in Leader.lnxt)
   &&
-  (one n : Node |
+  (lone n : Node |
     (n -> Leader) in Leader.lnxt)
 }
 
@@ -115,32 +118,64 @@ fact {
 
 // nodes in a member queue are not members
 fact {
-  //TODO
+  all n1, n2 : Node |
+    (n1 -> n2) in Member.qnxt
+    implies
+    (n1 !in Member)
 }
 
-// member queues end in the corresponding member
+// nodes in the member queue can't point to themselves
 fact {
-  //TODO
+  no n1 : Node |
+    (n1 -> n1) in Member.qnxt
+}
+
+// member queues end in a member
+fact {
+  all m : Member |
+    lone n : Node |
+      (n -> m) in m.qnxt
 }
 
 // nodes only appear in the member queue once
 fact {
-  //TODO
+  all n1 : Node | 
+    lone n2 : Node | 
+      (n2 -> n1) in Member.lnxt
 }
 
 // nodes can only appear in one member queue at a time
 fact {
-  //TODO
+  all n : Node | 
+    lone m : Member | 
+      n in m.qnxt.univ
 }
 
-// at least two members have non-empty member queues
-// note: I think this shouldn't be a fact, and instead should be
-// part of the run command
+// the member queue functions as a queue (maybe a better name for this fact?)
 fact {
-  some m1, m2 : Member | 
-    m1 != m2 && 
-    some m1.qnxt &&
-    some m2.qnxt
+  all n1, n2 : Node | 
+    (n1 -> n2) in Member.qnxt
+    implies 
+    ((one n3 : Node |
+      (n2 -> n3) in Member.qnxt)
+    or
+    (n2 in Member))
+}
+
+// TODO: remove this at the end
+// for debugging: two member queues have two non-member nodes
+fact {
+  some m1, m2 : Member |
+    m1 != m2 &&
+    some n1, n2 : Node - Member |
+      n1 != n2 &&
+      (n1 -> n2) in m1.qnxt &&
+      (n2 -> m1) in m1.qnxt &&
+
+    some n3, n4 : Node - Member |
+      n3 != n4 &&
+      (n3 -> n4) in m2.qnxt &&
+      (n4 -> m2) in m2.qnxt
 }
 
 
@@ -192,7 +227,14 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 }
 
 
+//TODO: for the visualization, two members should have non-empty member queues
+// currently we have a fact that guarantees two members have members queues
+// with at least two non-members, but it is for debugging and should be removed
+// later on
+
+
 run {#Node >= 5
+     #(Node - Member) >= 4
      #LQueue >= 1
      #SentMsg >= 1
      #SendingMsg >= 1
