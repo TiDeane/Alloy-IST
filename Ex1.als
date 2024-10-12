@@ -67,14 +67,6 @@ fact {
   all lq : LQueue |
     one n : Node |
       (lq -> n) in Leader.lnxt
-  
-  // Or this? (one less quantifier)
-  /*
-  all n : Node |
-    n in Leader.lnxt.univ
-    implies
-    n in LQueue
-  */
 }
 
 // nodes only appear in the leader queue once
@@ -115,7 +107,8 @@ fact {
     (one n2 : Node |
       n1 -> n2 in Leader.lnxt)
       or
-      (n1 in Leader)*/
+      (n1 in Leader)
+  */
 }
 
 // the leader is the end of the queue
@@ -141,7 +134,9 @@ fact {
   // Or this?
   /*
   all n : Node |
-    n in Member.qnxt.univ implies n !in Member
+    (n in Member.qnxt.univ
+    implies
+    n !in Member)
   */
 }
 
@@ -185,12 +180,12 @@ fact {
   // Or this?
   /*
   all n1 : Node |
-  (n1 in Member.qnxt.univ)
+  (n1 in Member.qnxt.univ
   implies
   (one n2 : Node |
     n1 -> n2 in Member.qnxt)
     or
-    (n1 in Member)
+    (n1 in Member))
   */
 }
 
@@ -264,7 +259,6 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 
 
 run {#Node >= 5
-     #(Node - Member) >= 4 // for debugging
      #LQueue >= 1
      #SentMsg >= 1
      #SendingMsg >= 1
