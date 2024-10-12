@@ -27,7 +27,7 @@ sig PendingMsg extends Msg {}
 //-------------------------------------------------------------------//
 
 
-// members form a ring
+// members form a single ring
 fact {
   all m1, m2 : Member |
     m2 in m1.^nxt
@@ -36,7 +36,7 @@ fact {
 
 // a member may only point to itself if it's the only member 
 fact {
-  // should #Member > 1 be inside or outside the "all" ?
+  // there might be a better way to do this
   #Member > 1
   implies
   (all m : Member |
@@ -45,12 +45,9 @@ fact {
 
 // no back and forth loops 
 fact {
-  // should #Member > 1 be inside or outside the "all" ?
   #Member > 1
   implies
-  (all m : Member |
-    m.nxt != m.~nxt)
-  // why is this different from (#Member > 1 implies nxt != ~nxt) ?
+  (nxt != ~nxt)
 }
 
 
@@ -70,6 +67,14 @@ fact {
   all lq : LQueue |
     one n : Node |
       (lq -> n) in Leader.lnxt
+  
+  // Or this? (one less quantifier)
+  /*
+  all n : Node |
+    n in Leader.lnxt.univ
+    implies
+    n in LQueue
+  */
 }
 
 // nodes only appear in the leader queue once
@@ -92,7 +97,7 @@ fact {
     (n2 -> n1) in Leader.lnxt)
 }
 
-// the leader queue functions as a queue (maybe a better name for this fact?)
+// the leader queue functions as a queue
 fact {
   all n1, n2 : Node | 
     (n1 -> n2) in Leader.lnxt
@@ -101,6 +106,16 @@ fact {
       (n2 -> n3) in Leader.lnxt)
     or
     (n2 in Leader))
+  
+  // Or this?
+  /*
+  all n1 : Node |
+    (n1 in Leader.qnxt.univ)
+    implies
+    (one n2 : Node |
+      n1 -> n2 in Leader.lnxt)
+      or
+      (n1 in Leader)*/
 }
 
 // the leader is the end of the queue
@@ -122,6 +137,12 @@ fact {
     (n1 -> n2) in Member.qnxt
     implies
     (n1 !in Member)
+
+  // Or this?
+  /*
+  all n : Node |
+    n in Member.qnxt.univ implies n !in Member
+  */
 }
 
 // nodes in the member queue can't point to themselves
@@ -151,7 +172,7 @@ fact {
       n in m.qnxt.univ
 }
 
-// the member queue functions as a queue (maybe a better name for this fact?)
+// the member queue functions as a queue
 fact {
   all n1, n2 : Node | 
     (n1 -> n2) in Member.qnxt
@@ -160,6 +181,17 @@ fact {
       (n2 -> n3) in Member.qnxt)
     or
     (n2 in Member))
+  
+  // Or this?
+  /*
+  all n1 : Node |
+  (n1 in Member.qnxt.univ)
+  implies
+  (one n2 : Node |
+    n1 -> n2 in Member.qnxt)
+    or
+    (n1 in Member)
+  */
 }
 
 // TODO: remove this at the end
@@ -199,9 +231,7 @@ fact {
 
 // a pending message can't have been received by any node
 fact {
-  all p : PendingMsg |
-    p.rcvrs = none
-  // why is this different from "no PendingMsg.rcvrs" ?
+  no PendingMsg.rcvrs
 }
 
 // a sent message isn't in any member's outbox
@@ -234,7 +264,7 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 
 
 run {#Node >= 5
-     #(Node - Member) >= 4
+     #(Node - Member) >= 4 // for debugging
      #LQueue >= 1
      #SentMsg >= 1
      #SendingMsg >= 1
