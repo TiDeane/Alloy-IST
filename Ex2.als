@@ -32,6 +32,14 @@ pred stutter[] {
 }
 
 pred init[] {
+    // the set of members consists only of the leader
+    Member = Leader
+    // all messages are in the pending state
+    no SentMsg
+    no SendingMsg
+    all pm : PendingMsg, m : Member | pm in m.outbox implies pm.sndr = m
+    // no node is queueing to become a member
+    no qnxt
 
 }
 
