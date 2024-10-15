@@ -45,7 +45,7 @@ fact {
 
 // no back and forth loops 
 fact {
-  #Member > 1
+  #Member > 2
   implies
   (nxt != ~nxt)
 }
@@ -124,6 +124,12 @@ fact {
 //-------------------------------------------------------------------//
 
 
+// nodes in the member queue can't point to themselves
+fact {
+  no n1 : Node |
+    (n1 -> n1) in Member.qnxt
+}
+
 // nodes in a member queue are not members
 fact {
   all n1, n2 : Node |
@@ -138,12 +144,6 @@ fact {
     implies
     n !in Member)
   */
-}
-
-// nodes in the member queue can't point to themselves
-fact {
-  no n1 : Node |
-    (n1 -> n1) in Member.qnxt
 }
 
 // member queues end in a member
@@ -231,9 +231,10 @@ fact {
 
 // a sent message isn't in any member's outbox
 fact {
-  all s : SentMsg |
-    no m : Member |
-      s in m.outbox
+  no s : SentMsg |
+    s in Member.outbox
+  
+  // no SentMsg.~outbox ?
 }
 
 // note: intuitively, a sent message has been received by every member...
