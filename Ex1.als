@@ -231,10 +231,7 @@ fact {
 
 // a sent message isn't in any member's outbox
 fact {
-  no s : SentMsg |
-    s in Member.outbox
-  
-  // no SentMsg.~outbox ?
+  no SentMsg.~outbox
 }
 
 // note: intuitively, a sent message has been received by every member...
