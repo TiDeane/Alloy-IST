@@ -7,7 +7,7 @@ sig Member in Node {
 }
 
 one sig Leader in Member {
-    var lnext: Node -> lone Node
+    var lnxt: Node -> lone Node
 }
 
 sig LQueue in Member {}
@@ -30,18 +30,22 @@ pred stutter[] {
     nxt' = nxt
     qnxt' = qnxt
     outbox' = outbox
-    lnext' = lnext
+    lnxt' = lnxt
 }
 
 pred init[] {
     // the set of members consists only of the leader
     Member = Leader
-    no lnext
+    Member.nxt = Member
+    no lnxt
+    no LQueue
+
     // all messages are in the pending state
     no SentMsg
     no SendingMsg
-    all pmsg : PendingMsg, m : Member | pmsg.sndr = m implies pmsg in m.outbox
-    all msg : Msg | msg.sndr !in msg.rcvrs
+    no PendingMsg.rcvrs
+    //all msg : Msg | msg.sndr !in msg.rcvrs
+    
     // no node is queueing to become a member
     no qnxt
 }
@@ -87,7 +91,7 @@ pred memberApplicationAux1[m : Member, n : Node] {
     // frame conditions
     nxt' = nxt
     outbox' = outbox
-    lnext' = lnext
+    lnxt' = lnxt
 }
 
 // case where m member queue is not empty
@@ -110,7 +114,7 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // frame conditions
     nxt' = nxt
     outbox' = outbox
-    lnext' = lnext
+    lnxt' = lnxt
 }
 
 //-------------------------------------------------------------------//
