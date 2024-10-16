@@ -143,7 +143,7 @@ fact {
 fact {
   all n1 : Node | 
     lone n2 : Node | 
-      (n2 -> n1) in Member.lnxt
+      (n2 -> n1) in Member.qnxt
 }
 
 // nodes can only appear in one member queue at a time
