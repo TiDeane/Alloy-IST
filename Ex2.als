@@ -72,7 +72,7 @@ pred memberApplication[m : Member, n : Node] {
 
 // case where m member queue is empty
 pred memberApplicationAux1[m : Member, n : Node] {
-    // precondition
+    // preconditions
     // m member queue is empty
     no m.qnxt
     // m is not n
@@ -80,7 +80,7 @@ pred memberApplicationAux1[m : Member, n : Node] {
     // n1 not in a member queue
     all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt
 
-    // postcondition
+    // postconditions
     qnxt' = qnxt + m->(n->m)
     // m'.qnxt = m.qnxt + (n->m)
 
@@ -92,9 +92,9 @@ pred memberApplicationAux1[m : Member, n : Node] {
 
 // case where m member queue is not empty
 pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
-    // precondition
+    // preconditions
     // m member queue contains n2
-    some n_aux : Node | n2->n_aux in m.qnxt
+    n2 in m.^(~(m.qnxt))
     // m is not n1
     m != n1
     // m is not n2
@@ -104,7 +104,7 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // n1 not in a member queue
     all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt
 
-    // postcondition
+    // postconditions
     qnxt' = qnxt + (m->(n1->n2))
 
     // frame conditions
