@@ -61,6 +61,8 @@ pred trans[] {
     some m : Member, n : Node | memberApplication[m, n]
     or
     some m : Member, n : Node | memberPromotion[m, n]
+    or
+    some l : Leader, m : Member | leaderApplication[l, m]
 }
 
 pred system[] {
@@ -93,7 +95,7 @@ pred memberApplicationAux1[m : Member, n : Node] {
     all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt
 
     // postconditions
-    qnxt' = qnxt + m->(n->m)
+    qnxt' = qnxt + (m->(n->m))
 
     // frame conditions
     Member' = Member
@@ -121,6 +123,7 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     n1 != n2
     // n1 not in a member queue
     all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt
+    // I think we still need a constraint that certifies n2 is the last node in the queue
 
     // postconditions
     qnxt' = qnxt + (m->(n1->n2))
@@ -177,6 +180,7 @@ pred memberPromotionAux2[m : Member, n1 : Node, n2 : Node] {
     // n in m member queue and is the first one, n2 points to n1
     n1->m in m.qnxt
     n2->n1 in m.qnxt
+    // these 3 are probably uneeded?
     // m is not n1
     m != n1
     // m is not n2
@@ -202,20 +206,68 @@ pred memberPromotionAux2[m : Member, n1 : Node, n2 : Node] {
 }
 
 pred leaderApplication[l : Leader, m : Member] {
-
+    leaderApplicationAux1[l, m]
+    or
+    some m2 : Member | leaderApplicationAux2[l, m, m2]
 }
 
 // case where leader queue is empty
 pred leaderApplicationAux1[l : Leader, m : Member] {
     // preconditions
-    // l leader queue is empty
+    // leader queue is empty
     no lnxt
+    // or no LQueue?
+    // m not in the leader queue // probably uneeded since LQueue is empty
+    m !in LQueue
     // l is not m
     l != m
+
+    // postconditions
+    lnxt' = lnxt + (l->(m->l))
+    LQueue' = LQueue + m
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    rcvrs' = rcvrs
 }
 
+// case where leader queue is not empty
 pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
+    // preconditions
+    // leader queue contains m2
+    m2 in LQueue
+    // m1 not in the leader queue
+    m1 !in LQueue
+    // l is not m1
+    l != m1
+    // l is not m2
+    l != m2
+    // m1 is not m2
+    m1 != m2
+    // (Same as MAppAux2) I think we still need a constraint that certifies m2 is the last node in the queue
 
+
+    // postconditions
+    lnxt' = lnxt + (l->(m1->m2))
+    LQueue' = LQueue + m1
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    rcvrs' = rcvrs
 }
 
 //-------------------------------------------------------------------//
@@ -235,14 +287,28 @@ pred trace4[] {
     eventually some m : Member, n1, n2 : Node | memberPromotionAux2[m, n1, n2]
 }
 
+pred trace5[] {
+    eventually some l : Leader, m : Member | leaderApplicationAux1[l, m]
+}
+
+pred trace6[] {
+    eventually some l : Leader, m1, m2 : Member | leaderApplicationAux2[l, m1, m2]
+}
+
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
+}
+
+fun visualizeLeaderQ[] : Node -> lone Node {
+  Leader.lnxt
 }
 
 run {
     //trace1[]
     //trace2[]
-    trace3[]
-    trace4[]
+    //trace3[]
+    //trace4[]
+    trace5[]
+    trace6[]
     //#Node = 3
 } for 5
