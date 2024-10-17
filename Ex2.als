@@ -65,6 +65,10 @@ pred trans[] {
     some l : Leader, m : Member | leaderApplication[l, m]
     or
     some l : Leader, lq : LQueue | leaderPromotion[l, lq]
+    or
+    some m1, m2 : Member | memberExit[m1, m2]
+    or
+    some m : Member, n : Node | nonMemberExit[m, n]
 }
 
 pred system[] {
@@ -91,6 +95,8 @@ pred memberApplicationAux1[m : Member, n : Node] {
     // preconditions
     // m member queue is empty
     no m.qnxt
+    // n is not a member
+    n !in Member
     // m is not n
     m != n
     // n1 not in a member queue
@@ -117,6 +123,8 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // preconditions
     // m member queue contains n2
     n2 in m.^(~(m.qnxt))
+    // n is not a member
+    n1 !in Member
     // m is not n1
     m != n1
     // m is not n2
@@ -341,6 +349,93 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
     rcvrs' = rcvrs
 }
 
+// m1 wants to exit, m2.nxt = m1 (m2 will always exists because the Leader can't leave)
+// TODO: this doesn't work with only 2 nodes right now
+pred memberExit[m1 : Member, m2 : Member] {
+    // preconditions
+    // m1 is not the leader
+    m1 !in Leader
+    // m1 is not in the leader queue
+    m1 !in LQueue
+    // m1 member queue is empty
+    no m1.qnxt
+    // m1 has sent all its messages
+    no m1.outbox
+    // m2 is behind m1
+    m2->m1 in nxt // or "m2.nxt->m1" ?
+
+    // postconditions
+    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt)
+    Member' = Member - m1
+
+    // frame conditions 
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    qnxt' = qnxt
+    lnxt' = lnxt
+    rcvrs' = rcvrs
+}
+
+// this is wrong, the cases are not these ones
+// I think it should be: when n is last and when n is in the middle
+pred nonMemberExit[m : Member, n : Node] {
+    nonMemberExitAux1[m, n]
+    or
+    some n2, n3 : Node | nonMemberExitAux2[m, n, n2, n3]
+}
+
+// case where n is the only node in the queue
+pred nonMemberExitAux1[m : Member, n : Node] {
+    // preconditions
+    // n is the only node in the m member queue
+    m.qnxt = n->m
+    // n is not m (Maybe uneeded?)
+    n != m
+
+    // postconditions
+    qnxt' = qnxt - (m->(n->m))
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    lnxt' = lnxt
+    rcvrs' = rcvrs
+}
+
+// case where n1 wants to exit, n2 point to n1, n1 points to n3
+// TODO: does not work
+pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
+    // preconditions
+    // n1, n2 points to n1, n1 points to n3
+    n1->n3 in m.qnxt
+    n2->n1 in m.qnxt
+
+    // postconditions
+    qnxt' = qnxt - m->(n2->n1) + m->(n2->n3) - m->(n1->n3)
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    lnxt' = lnxt
+    rcvrs' = rcvrs
+}
+
 //-------------------------------------------------------------------//
 
 pred trace1[] {
@@ -374,6 +469,18 @@ pred trace8[] {
     eventually some l : Leader, lq1, lq2 : LQueue | leaderPromotionAux2[l, lq1, lq2]
 }
 
+pred trace9[] {
+    eventually some m1, m2 : Member | memberExit[m1, m2]
+}
+
+pred trace10[] {
+    eventually some m : Member, n : Node | nonMemberExitAux1[m, n]
+}
+
+pred trace11[] {
+    eventually some m : Member, n1, n2, n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
+}
+
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
 }
@@ -389,7 +496,10 @@ run {
     //trace4[]
     //trace5[]
     //trace6[]
-    trace7[]
-    trace8[]
-    //#Node = 3
+    //trace7[]
+    //trace8[]
+    //trace9[]
+    //trace10[]
+    trace11[]
+    //#Node = 2
 } for 5
