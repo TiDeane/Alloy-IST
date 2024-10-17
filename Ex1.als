@@ -1,27 +1,26 @@
-sig Node {}
-
-sig Member in Node {
-  nxt: lone Member,
-  qnxt : Node -> lone Node,
+sig Node {
   outbox: set Msg
 }
 
+sig Member in Node { 
+  nxt: one Node, 
+  qnxt : Node -> lone Node 
+}
+
 one sig Leader in Member {
-  lnxt: Node -> lone Node
+   lnxt: Member -> lone Member
 }
 
 sig LQueue in Member {}
 
-abstract sig Msg {
-  sndr: Node,
-  rcvrs: set Node
+// TODO: como msgs sao necessariamente de um (unico) tipo, nao podemos fazer ela
+// TODO: abstract e dizer que os tipos dao extend (ao invés de "in")?
+sig Msg {
+  sndr: Node, 
+  rcvrs: set Node 
 }
 
-sig SentMsg extends Msg {}
-
-sig SendingMsg extends Msg {}
-
-sig PendingMsg extends Msg {}
+sig SentMsg, SendingMsg, PendingMsg in Msg {}
 
 
 //-------------------------------------------------------------------//
@@ -36,11 +35,9 @@ fact {
 
 // a member may only point to itself if it's the only member 
 fact {
-  // there might be a better way to do this
   (#Member > 1)
   implies
-  (all m : Member |
-    m.nxt != m)
+  (no iden & nxt)
 }
 
 // no back and forth loops 
@@ -60,7 +57,7 @@ fact {
     (n1 -> n1) in Leader.lnxt
 }
 
-// source nodes in the leader queue are LQueue and point to Members
+// source nodes in the leader queue are LQueue nodes
 fact {
   all n1, n2 : Node |
     ((n1 -> n2) in Leader.lnxt)
@@ -70,34 +67,32 @@ fact {
 
 // every LQueue node is part of the leader queue
 fact {
-  all lq : LQueue |
-    one n : Node |
-      (lq -> n) in Leader.lnxt
+  LQueue in Leader.lnxt.univ
 }
 
 // nodes only appear in the leader queue once
 fact {
-  all n1 : Node | 
-    lone n2 : Node | 
-      (n2 -> n1) in Leader.lnxt
+  all m1 : Member | 
+    lone m2 : Member | 
+      (m2 -> m1) in Leader.lnxt
 }
 
 // no back and forth loops
 fact {
-  no n1, n2 : Node |
-    ((n1 -> n2) in Leader.lnxt &&
-    (n2 -> n1) in Leader.lnxt)
+  no m1, m2 : Member |
+    ((m1 -> m2) in Leader.lnxt &&
+    (m2 -> m1) in Leader.lnxt)
 }
 
 // the leader queue functions as a queue
 fact {
-  all n1, n2 : Node | 
-    ((n1 -> n2) in Leader.lnxt)
+  all m1, m2 : Member | 
+    ((m1 -> m2) in Leader.lnxt)
     implies 
-      ((one n3 : Node |
-        (n2 -> n3) in Leader.lnxt)
+      ((one m3 : Member |
+        (m2 -> m3) in Leader.lnxt)
       or
-      (n2 in Leader))
+      (m2 in Leader))
 }
 
 // the leader doesn't point to anything in the leader queue
@@ -110,8 +105,8 @@ fact {
 fact {
   (Leader.lnxt.univ != none)
   implies
-  (one n : Node |
-    (n -> Leader) in Leader.lnxt)
+  (one m : Member |
+    (m -> Leader) in Leader.lnxt)
 }
 
 
@@ -132,7 +127,7 @@ fact {
     (n !in Member)
 }
 
-// member queues end in a member
+// each member only has one member queue
 fact {
   all m : Member |
     lone n : Node |
@@ -176,6 +171,8 @@ fact {
 }
 
 // a pending message isn't waiting to be redirected to the next member
+// TODO: should the PendingMsg be in its sender's outbox? or does that only happen
+// TODO: when it becomes a SendingMsg?
 fact {
   no PendingMsg.~outbox
 }
@@ -185,9 +182,24 @@ fact {
   no PendingMsg.rcvrs
 }
 
+// a sending message hasn't been received by every member
+fact {
+  all s : SendingMsg |
+    s.rcvrs != Member
+}
+
 // a sent message isn't in any member's outbox
 fact {
   no SentMsg.~outbox
+}
+
+// TODO: if we can make the message types extend msg, then we can delete this
+// messages are exclusively of types pending, sending or sent 
+fact {
+  all m : Msg |
+    ((m in PendingMsg && m !in (SendingMsg + SentMsg))
+    or (m in SendingMsg && m !in (PendingMsg + SentMsg))
+    or (m in SentMsg && m !in (PendingMsg + SendingMsg)))
 }
 
 // note: intuitively, a sent message has been received by every member...
