@@ -46,7 +46,7 @@ pred init[] {
     // all messages are in the pending state
     no SentMsg
     no SendingMsg
-    Msg = PendingMsg
+    Msg = PendingMsg // maybe uneeded, because Msg is abstract and we have "no" on the other two
     no PendingMsg.rcvrs
     all pmsg : PendingMsg, n : Node | pmsg.sndr = n iff pmsg in n.outbox
     //all msg : Msg | msg.sndr !in msg.rcvrs
@@ -63,6 +63,8 @@ pred trans[] {
     some m : Member, n : Node | memberPromotion[m, n]
     or
     some l : Leader, m : Member | leaderApplication[l, m]
+    or
+    some l : Leader, lq : LQueue | leaderPromotion[l, lq]
 }
 
 pred system[] {
@@ -150,13 +152,13 @@ pred memberPromotion[m : Member, n : Node] {
 // case where n is the only node in the queue
 pred memberPromotionAux1[m : Member, n : Node] {
     // preconditions
-    // n in m member queue and is the first one
+    // n is the only node in the m member queue
     m.qnxt = n->m
+    // n is not m (Maybe uneeded?)
     n != m
 
     // postconditions
     Member' = Member + n
-    
     nxt' = nxt + (n->m.nxt) - (m->m.nxt) + (m->n)
     qnxt' = qnxt - m->(n->m)
     // o stor quando estava a explicar usou: no m.qnxt'
@@ -177,7 +179,7 @@ pred memberPromotionAux1[m : Member, n : Node] {
 // case where n1 is the head of the member queue and n2 points to n1
 pred memberPromotionAux2[m : Member, n1 : Node, n2 : Node] {
     // preconditions
-    // n in m member queue and is the first one, n2 points to n1
+    // n1 in m member queue and is the first one, n2 points to n1
     n1->m in m.qnxt
     n2->n1 in m.qnxt
     // these 3 are probably uneeded?
@@ -270,6 +272,75 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     rcvrs' = rcvrs
 }
 
+pred leaderPromotion[l : Leader, lq : LQueue] {
+    leaderPromotionAux1[l, lq]
+    or
+    some lq2 : LQueue | leaderPromotionAux2[l, lq, lq2]
+}
+
+// case where lq is the only node in the leader queue
+pred leaderPromotionAux1[l : Leader, lq : LQueue ] {
+    // preconditions
+    // lq is the only member in leader queue
+    LQueue = lq
+    // leader has sent all its messages
+    no l.outbox
+    // l is not lq
+    l != lq
+
+    // postconditions
+    lnxt' = lnxt - (l->(lq->l)) // or " no lnxt' " ?
+    LQueue' = LQueue - lq
+    Leader' = Leader - l + lq // could we just put "Leader' = l"?
+
+    // frame conditions
+    Member' = Member
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    rcvrs' = rcvrs
+}
+
+// case where lq1 is the head of the leader queue and lq2 points to lq1
+pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
+    // preconditions
+    // lq1 in leader queue and is the head, lq2 points to lq1
+    lq1->l in l.lnxt
+    lq2->lq1 in l.lnxt
+    // leader has sent all its messages
+    no l.outbox
+    // these 3 are probably uneeded?
+    // l is not lq1
+    l != lq1
+    // l is not lq2
+    l != lq2
+    // lq1 is not lq2
+    lq1 != lq2
+
+    // postconditions
+    LQueue' = LQueue - lq1
+    Leader' = Leader - l + lq1 // could we just put "Leader' = l"?
+    lq1.lnxt' = l.lnxt - (lq1->l)
+    no l.lnxt'
+    // used here the same logic as the member queue
+    // but I'm not sure what the teacher means with
+    // "the tail of the old leader's queue becomes
+    // the new leader's queue"
+
+    // frame conditions
+    Member' = Member
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    rcvrs' = rcvrs
+}
+
 //-------------------------------------------------------------------//
 
 pred trace1[] {
@@ -295,6 +366,14 @@ pred trace6[] {
     eventually some l : Leader, m1, m2 : Member | leaderApplicationAux2[l, m1, m2]
 }
 
+pred trace7[] {
+    eventually some l : Leader, lq : LQueue | leaderPromotionAux1[l, lq]
+}
+
+pred trace8[] {
+    eventually some l : Leader, lq1, lq2 : LQueue | leaderPromotionAux2[l, lq1, lq2]
+}
+
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
 }
@@ -308,7 +387,9 @@ run {
     //trace2[]
     //trace3[]
     //trace4[]
-    trace5[]
-    trace6[]
+    //trace5[]
+    //trace6[]
+    trace7[]
+    trace8[]
     //#Node = 3
 } for 5
