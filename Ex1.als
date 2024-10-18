@@ -13,14 +13,12 @@ one sig Leader in Member {
 
 sig LQueue in Member {}
 
-// TODO: como msgs sao necessariamente de um (unico) tipo, nao podemos fazer ela
-// TODO: abstract e dizer que os tipos dao extend (ao invés de "in")?
-sig Msg {
+abstract sig Msg {
   sndr: Node, 
   rcvrs: set Node 
 }
 
-sig SentMsg, SendingMsg, PendingMsg in Msg {}
+sig SentMsg, SendingMsg, PendingMsg extends Msg {}
 
 
 //-------------------------------------------------------------------//
@@ -170,11 +168,12 @@ fact {
       m in n.outbox
 }
 
-// a pending message isn't waiting to be redirected to the next member
-// TODO: should the PendingMsg be in its sender's outbox? or does that only happen
-// TODO: when it becomes a SendingMsg?
+// a pending message is only in its sender's outbox
 fact {
-  no PendingMsg.~outbox
+  all p : PendingMsg | 
+    p in p.sndr.outbox &&
+    no n : (Node - p.sndr) |
+      p in n.outbox
 }
 
 // a pending message can't have been received by any node
@@ -188,18 +187,15 @@ fact {
     s.rcvrs != Member
 }
 
+// a sending message is in at least one member's outbox
+fact {
+  all s : SendingMsg |
+    s in Member.outbox
+}
+
 // a sent message isn't in any member's outbox
 fact {
   no SentMsg.~outbox
-}
-
-// TODO: if we can make the message types extend msg, then we can delete this
-// messages are exclusively of types pending, sending or sent 
-fact {
-  all m : Msg |
-    ((m in PendingMsg && m !in (SendingMsg + SentMsg))
-    or (m in SendingMsg && m !in (PendingMsg + SentMsg))
-    or (m in SentMsg && m !in (PendingMsg + SendingMsg)))
 }
 
 // note: intuitively, a sent message has been received by every member...
