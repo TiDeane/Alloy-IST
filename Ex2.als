@@ -1,21 +1,21 @@
 sig Node {
-    var outbox: set Msg
+  var outbox: set Msg
 }
 
-var sig Member in Node {
-    var nxt: one Member,
-    var qnxt: Node -> lone Node,
+var sig Member in Node { 
+    var nxt: one Node, 
+    var qnxt: Node -> lone Node 
 }
 
 var one sig Leader in Member {
-    var lnxt: Node -> lone Node
+    var lnxt: Member -> lone Member
 }
 
 var sig LQueue in Member {}
 
-abstract sig Msg {
-    sndr: Node,
-    var rcvrs: set Node
+sig Msg {
+    sndr: Node, 
+    var rcvrs: set Node 
 }
 
 var sig SentMsg, SendingMsg, PendingMsg in Msg {}
@@ -42,17 +42,17 @@ pred init[] {
     Member.nxt = Member
     no lnxt
     no LQueue
+    
+    // no node is queueing to become a member
+    no qnxt
 
     // all messages are in the pending state
     no SentMsg
     no SendingMsg
-    Msg = PendingMsg // maybe uneeded, because Msg is abstract and we have "no" on the other two
+    Msg = PendingMsg
     no PendingMsg.rcvrs
     all pmsg : PendingMsg, n : Node | pmsg.sndr = n iff pmsg in n.outbox
     //all msg : Msg | msg.sndr !in msg.rcvrs
-    
-    // no node is queueing to become a member
-    no qnxt
 }
 
 pred trans[] {
@@ -97,8 +97,6 @@ pred memberApplicationAux1[m : Member, n : Node] {
     no m.qnxt
     // n is not a member
     n !in Member
-    // m is not n
-    m != n
     // n1 not in a member queue
     all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt
 
@@ -125,15 +123,14 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     n2 in m.^(~(m.qnxt))
     // n is not a member
     n1 !in Member
-    // m is not n1
-    m != n1
     // m is not n2
-    m != n2
+    n2 !in Member
     // n1 is not n2
     n1 != n2
     // n1 not in a member queue
     all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt
-    // I think we still need a constraint that certifies n2 is the last node in the queue
+    // n2 is the head of m's member queue
+    (n2->m) in m.qnxt
 
     // postconditions
     qnxt' = qnxt + (m->(n1->n2))
@@ -162,8 +159,8 @@ pred memberPromotionAux1[m : Member, n : Node] {
     // preconditions
     // n is the only node in the m member queue
     m.qnxt = n->m
-    // n is not m (Maybe uneeded?)
-    n != m
+    // n is not a member
+    n !in Member
 
     // postconditions
     Member' = Member + n
@@ -190,11 +187,10 @@ pred memberPromotionAux2[m : Member, n1 : Node, n2 : Node] {
     // n1 in m member queue and is the first one, n2 points to n1
     n1->m in m.qnxt
     n2->n1 in m.qnxt
-    // these 3 are probably uneeded?
-    // m is not n1
-    m != n1
-    // m is not n2
-    m != n2
+    // n1 is not a member
+    n1 !in Member
+    // n2 is not a member
+    n2 !in Member
     // n1 is not n2
     n1 != n2
 
@@ -225,10 +221,7 @@ pred leaderApplication[l : Leader, m : Member] {
 pred leaderApplicationAux1[l : Leader, m : Member] {
     // preconditions
     // leader queue is empty
-    no lnxt
-    // or no LQueue?
-    // m not in the leader queue // probably uneeded since LQueue is empty
-    m !in LQueue
+    no LQueue
     // l is not m
     l != m
 
@@ -259,9 +252,8 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     l != m1
     // l is not m2
     l != m2
-    // m1 is not m2
-    m1 != m2
-    // (Same as MAppAux2) I think we still need a constraint that certifies m2 is the last node in the queue
+    // m2 is the head of the leader queue
+    (m2->l) in l.lnxt
 
 
     // postconditions
@@ -299,7 +291,7 @@ pred leaderPromotionAux1[l : Leader, lq : LQueue ] {
     // postconditions
     lnxt' = lnxt - (l->(lq->l)) // or " no lnxt' " ?
     LQueue' = LQueue - lq
-    Leader' = Leader - l + lq // could we just put "Leader' = l"?
+    Leader' = Leader - l + lq
 
     // frame conditions
     Member' = Member
@@ -330,13 +322,9 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
 
     // postconditions
     LQueue' = LQueue - lq1
-    Leader' = Leader - l + lq1 // could we just put "Leader' = l"?
+    Leader' = Leader - l + lq1
     lq1.lnxt' = l.lnxt - (lq1->l)
     no l.lnxt'
-    // used here the same logic as the member queue
-    // but I'm not sure what the teacher means with
-    // "the tail of the old leader's queue becomes
-    // the new leader's queue"
 
     // frame conditions
     Member' = Member
@@ -353,6 +341,8 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
 // TODO: this doesn't work with only 2 nodes right now
 pred memberExit[m1 : Member, m2 : Member] {
     // preconditions
+    // m1 and m2 are different
+    m1 != m2
     // m1 is not the leader
     m1 !in Leader
     // m1 is not in the leader queue
@@ -393,8 +383,8 @@ pred nonMemberExitAux1[m : Member, n : Node] {
     // preconditions
     // n is the only node in the m member queue
     m.qnxt = n->m
-    // n is not m (Maybe uneeded?)
-    n != m
+    // n is not a member
+    n !in Member
 
     // postconditions
     qnxt' = qnxt - (m->(n->m))
@@ -419,6 +409,14 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
     // n1, n2 points to n1, n1 points to n3
     n1->n3 in m.qnxt
     n2->n1 in m.qnxt
+    // n1, n2 and n3 are not members
+    n1 !in Member
+    n2 !in Member
+    n3 !in Member
+    // n1, n2 and n3 are different
+    n1 != n2
+    n1 != n3
+    n2 != n3
 
     // postconditions
     qnxt' = qnxt - m->(n2->n1) + m->(n2->n3) - m->(n1->n3)
@@ -436,7 +434,9 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
     rcvrs' = rcvrs
 }
 
+
 //-------------------------------------------------------------------//
+
 
 pred trace1[] {
     eventually some m : Member, n : Node | memberApplicationAux1[m, n]
@@ -481,6 +481,7 @@ pred trace11[] {
     eventually some m : Member, n1, n2, n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
 }
 
+
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
 }
@@ -488,6 +489,10 @@ fun visualizeMemberQ[] : Node -> lone Node {
 fun visualizeLeaderQ[] : Node -> lone Node {
   Leader.lnxt
 }
+
+
+//-------------------------------------------------------------------//
+
 
 run {
     //trace1[]
