@@ -68,7 +68,7 @@ pred trans[] {
     or
     some m1, m2 : Member | memberExit[m1, m2]
     or
-    some m : Member, n : Node | nonMemberExit[m, n]
+    some m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2]
     or
     some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
     or
@@ -134,9 +134,9 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // n1 is not n2
     n1 != n2
     // n1 not in a member queue
-    all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt
-    // n2 is the head of m's member queue
-    (n2->m) in m.qnxt
+    all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))
+    // n2 is the last node of m's member queue
+    no n_aux : Node | n_aux->n2 in m.qnxt
 
     // postconditions
     qnxt' = qnxt + (m->(n1->n2))
@@ -201,7 +201,6 @@ pred memberPromotionAux2[m : Member, n1 : Node, n2 : Node] {
     n1 != n2
 
     // postconditions
-    //m.qnxt' = m.qnxt - (n1->m) - (n2->n1) + (n2->n1) // mesmo caso que em cima
     qnxt' = qnxt - m->(n1->m) - m->(n2->n1) + m->(n2->m)
     Member' = Member + n1
     nxt' = nxt + (n1->m.nxt) - (m->m.nxt) + (m->n1)
@@ -258,9 +257,8 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     l != m1
     // l is not m2
     l != m2
-    // m2 is the head of the leader queue
-    (m2->l) in l.lnxt
-
+    // m2 is the last node of the leader queue
+    no m_aux : Member | l->(m_aux->m2) in lnxt
 
     // postconditions
     lnxt' = lnxt + (l->(m1->m2))
@@ -348,7 +346,7 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
 }
 
 // m1 wants to exit, m2.nxt = m1 (m2 will always exists because the Leader can't leave)
-// TODO: this doesn't work with only 2 nodes right now
+// TODO: this doesn't work with only 2 nodes right now (because there is not leader queue)
 pred memberExit[m1 : Member, m2 : Member] {
     // preconditions
     // m1 and m2 are different
@@ -365,7 +363,7 @@ pred memberExit[m1 : Member, m2 : Member] {
     m2->m1 in nxt // or "m2.nxt->m1" ?
 
     // postconditions
-    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt)
+    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt) // apparently works without this line??
     Member' = Member - m1
 
     // frame conditions 
@@ -380,24 +378,26 @@ pred memberExit[m1 : Member, m2 : Member] {
     rcvrs' = rcvrs
 }
 
-// this is wrong, the cases are not these ones
-// I think it should be: when n is last and when n is in the middle
-pred nonMemberExit[m : Member, n : Node] {
-    nonMemberExitAux1[m, n]
+pred nonMemberExit[m : Member, n1 : Node, n2 : Node] {
+    nonMemberExitAux1[m, n1, n2]
     or
-    some n2, n3 : Node | nonMemberExitAux2[m, n, n2, n3]
+    some n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
 }
 
-// case where n is the only node in the queue
-pred nonMemberExitAux1[m : Member, n : Node] {
+// case where n1 is the last node in the queue
+// TODO: doesn't work without leader queue
+pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // preconditions
-    // n is the only node in the m member queue
-    m.qnxt = n->m
-    // n is not a member
-    n !in Member
+    // n is in m member queue
+    (n1->n2) in m.qnxt
+    //n1 in m.^(~(m.qnxt))
+    // n1 is not a member
+    n1 !in Member
+    // n1 is the last node of the member queue
+    no n_aux : Node | n_aux->n1 in m.qnxt
 
     // postconditions
-    qnxt' = qnxt - (m->(n->m))
+    qnxt' = qnxt - m->(n1->n2) // without leader application this makes it not work
 
     // frame conditions
     Member' = Member
@@ -413,16 +413,15 @@ pred nonMemberExitAux1[m : Member, n : Node] {
 }
 
 // case where n1 wants to exit, n2 point to n1, n1 points to n3
-// TODO: does not work
+// TODO: doesn't work without leader queue 
 pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
     // preconditions
     // n1, n2 points to n1, n1 points to n3
-    n1->n3 in m.qnxt
     n2->n1 in m.qnxt
-    // n1, n2 and n3 are not members
+    n1->n3 in m.qnxt
+    // n1 and n2 are not members
     n1 !in Member
     n2 !in Member
-    n3 !in Member
     // n1, n2 and n3 are different
     n1 != n2
     n1 != n3
@@ -452,12 +451,16 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // preconditions
     m != l
     (l->m) in nxt
+    // msg is a pending message
     msg in PendingMsg
     msg !in SendingMsg
     msg !in SentMsg
+    // msg is only in the leader's outbox
     msg in l.outbox
     msg !in m.outbox
+    // l is the message's sender
     msg.sndr = l
+    // m hasn't received msg
     m !in msg.rcvrs
 
     // postconditions
@@ -480,14 +483,21 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
 pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // preconditions
     m1 != m2
+    // m1 points to m2
     (m1->m2) in nxt
+    // m2 isn't the leader
     m2 !in Leader
+    // msg is a sending message
     Msg !in PendingMsg
     Msg in SendingMsg
     Msg !in SentMsg
+    // msg is in m1's outbox
     msg in m1.outbox
+    // msg isn't in m2's outbox
     msg !in m2.outbox
+    // m1 has received msg
     m1 in msg.rcvrs
+    // m2 hasn't received msg
     m2 !in msg.rcvrs
 
     // postconditions
@@ -509,13 +519,19 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
 pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // preconditions
     l != m
+    // m points to l
     (m->l) in nxt
+    // msg is a sending message
     Msg !in PendingMsg
     msg in SendingMsg
     Msg !in SentMsg
+    // msg is in m's outbox
     msg in m.outbox
+    // msgsn't in l's outbox
     msg !in l.outbox
+    // m has received msg
     m in msg.rcvrs
+    // l hasn't received msg
     l !in msg.rcvrs
 
     // postconditions
@@ -574,7 +590,7 @@ pred trace9[] {
 }
 
 pred trace10[] {
-    eventually some m : Member, n : Node | nonMemberExitAux1[m, n]
+    eventually some m : Member, n1, n2 : Node | nonMemberExitAux1[m, n1, n2]
 }
 
 pred trace11[] {
@@ -620,8 +636,9 @@ run {
     //trace8[]
     //trace9[]
     //trace10[]
-    //trace11[]
+    trace11[]
     //trace12[]
     //trace13[]
-    trace14[]
+    //trace14[]
+    //#Node = 2
 } for 5
