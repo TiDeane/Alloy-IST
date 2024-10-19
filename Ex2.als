@@ -69,6 +69,12 @@ pred trans[] {
     some m1, m2 : Member | memberExit[m1, m2]
     or
     some m : Member, n : Node | nonMemberExit[m, n]
+    or
+    some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
+    or
+    some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
+    or
+    some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
 }
 
 pred system[] {
@@ -285,6 +291,8 @@ pred leaderPromotionAux1[l : Leader, lq : LQueue ] {
     LQueue = lq
     // leader has sent all its messages
     no l.outbox
+    // no message currently being broadcast
+    no SendingMsg
     // l is not lq
     l != lq
 
@@ -312,6 +320,8 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
     lq2->lq1 in l.lnxt
     // leader has sent all its messages
     no l.outbox
+    // no message currently being broadcast
+    no SendingMsg
     // these 3 are probably uneeded?
     // l is not lq1
     l != lq1
@@ -438,6 +448,96 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
 //-------------------------------------------------------------------//
 
 
+pred broadcastInit[l : Leader, m : Member, msg: Msg] {
+    // preconditions
+    m != l
+    (l->m) in nxt
+    msg in PendingMsg
+    msg !in SendingMsg
+    msg !in SentMsg
+    msg in l.outbox
+    msg !in m.outbox
+    msg.sndr = l
+    m !in msg.rcvrs
+
+    // postconditions
+    PendingMsg' = PendingMsg - msg
+    SendingMsg' = SendingMsg + msg
+    outbox' = outbox - (l->msg) + (m->msg)
+    rcvrs' = rcvrs + (msg->m)
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    nxt' = nxt
+    qnxt' = qnxt
+    lnxt' = lnxt
+}
+
+// m1 redirects message to m2
+pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
+    // preconditions
+    m1 != m2
+    (m1->m2) in nxt
+    m2 !in Leader
+    Msg !in PendingMsg
+    Msg in SendingMsg
+    Msg !in SentMsg
+    msg in m1.outbox
+    msg !in m2.outbox
+    m1 in msg.rcvrs
+    m2 !in msg.rcvrs
+
+    // postconditions
+    outbox' = outbox - (m1->msg) + (m2->msg)
+    rcvrs' = rcvrs + (msg->m2)
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    PendingMsg' = PendingMsg
+    SendingMsg' = SendingMsg
+    SentMsg' = SentMsg
+    nxt' = nxt
+    qnxt' = qnxt
+    lnxt' = lnxt
+}
+
+pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
+    // preconditions
+    l != m
+    (m->l) in nxt
+    Msg !in PendingMsg
+    msg in SendingMsg
+    Msg !in SentMsg
+    msg in m.outbox
+    msg !in l.outbox
+    m in msg.rcvrs
+    l !in msg.rcvrs
+
+    // postconditions
+    SendingMsg' = SendingMsg - msg
+    SentMsg' = SentMsg + msg
+    outbox' = outbox - (m->msg)
+    rcvrs' = rcvrs + (msg->l)
+
+    // frame conditions
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    PendingMsg' = PendingMsg
+    nxt' = nxt
+    qnxt' = qnxt
+    lnxt' = lnxt
+}
+
+
+//-------------------------------------------------------------------//
+
+
 pred trace1[] {
     eventually some m : Member, n : Node | memberApplicationAux1[m, n]
 }
@@ -481,6 +581,21 @@ pred trace11[] {
     eventually some m : Member, n1, n2, n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
 }
 
+pred trace12[] {
+    eventually some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
+}
+
+pred trace13[] {
+    eventually some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
+}
+
+pred trace14[] {
+    eventually some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
+}
+
+
+//-------------------------------------------------------------------//
+
 
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
@@ -505,6 +620,8 @@ run {
     //trace8[]
     //trace9[]
     //trace10[]
-    trace11[]
-    //#Node = 2
+    //trace11[]
+    //trace12[]
+    //trace13[]
+    trace14[]
 } for 5
