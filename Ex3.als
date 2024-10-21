@@ -104,7 +104,7 @@ pred memberApplicationAux1[m : Member, n : Node] {
     // n is not a member
     n !in Member
     // n1 not in a member queue
-    all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt
+    all m_aux : Member | n !in m_aux.^(~(m_aux.qnxt))
 
     // postconditions
     qnxt' = qnxt + (m->(n->m))
@@ -538,13 +538,13 @@ pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     SendingMsg' = SendingMsg - msg
     SentMsg' = SentMsg + msg
     outbox' = outbox - (m->msg)
-    rcvrs' = rcvrs + (msg->l)
 
     // frame conditions
     Member' = Member
     Leader' = Leader
     LQueue' = LQueue
     PendingMsg' = PendingMsg
+    rcvrs' = rcvrs
     nxt' = nxt
     qnxt' = qnxt
     lnxt' = lnxt
@@ -626,18 +626,299 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 
 
 pred valid[] {
-    //TODO
+    // members form a single ring
+    all m1, m2 : Member |
+        m2 in m1.^nxt
+
+    // a member may only point to itself if it's the only member 
+    (#Member > 1)
+    implies
+    (no iden & nxt)
+
+    // no back and forth loops 
+    (#Member > 2)
+    implies
+    (nxt != ~nxt)
+
+    // nodes in the leader queue can't point to themselves
+    no n1 : Node |
+        (n1 -> n1) in Leader.lnxt
+
+    // source nodes in the leader queue are LQueue nodes
+    all n1, n2 : Node |
+        ((n1 -> n2) in Leader.lnxt)
+        implies
+        (n1 in LQueue && n2 in Member)
+
+    // every LQueue node is part of the leader queue
+    LQueue in Leader.lnxt.univ
+
+    // nodes only appear in the leader queue once
+    all m1 : Member | 
+        lone m2 : Member | 
+        (m2 -> m1) in Leader.lnxt
+
+    // no back and forth loops
+    no m1, m2 : Member |
+        ((m1 -> m2) in Leader.lnxt &&
+        (m2 -> m1) in Leader.lnxt)
+
+    // the leader queue functions as a queue
+    all m1, m2 : Member | 
+        ((m1 -> m2) in Leader.lnxt)
+        implies 
+        ((one m3 : Member |
+            (m2 -> m3) in Leader.lnxt)
+        or
+        (m2 in Leader))
+
+    // the leader doesn't point to anything in the leader queue
+    no l : Leader |
+        l in Leader.lnxt.univ
+
+    // if the leader queue isn't empty then it ends on the leader
+    (Leader.lnxt.univ != none)
+        implies
+        (one m : Member |
+            (m -> Leader) in Leader.lnxt)
+
+    // nodes in the member queue can't point to themselves
+    no n1 : Node |
+        (n1 -> n1) in Member.qnxt
+
+    // source nodes in a member queue are not members
+    all n : Node |
+        (n in Member.qnxt.univ)
+        implies
+        (n !in Member)
+
+    // each member only has one member queue
+    all m : Member |
+        lone n : Node |
+        (n -> m) in m.qnxt
+
+    // nodes only appear in the member queue once
+    all n1 : Node | 
+        lone n2 : Node | 
+        (n2 -> n1) in Member.qnxt
+
+    // nodes can only appear in one member queue at a time
+    all n : Node | 
+        lone m : Member | 
+        n in m.qnxt.univ
+
+    // the member queue functions as a queue
+    all n1, n2 : Node | 
+        ((n1 -> n2) in Member.qnxt)
+        implies 
+        ((one n3 : Node |
+            (n2 -> n3) in Member.qnxt)
+        or
+        (n2 in Member))
+
+    // a message is only in one member's outbox at a time
+    all m : Msg |
+        lone n : Member |
+        m in n.outbox
+
+    // a pending message is only in its sender's outbox
+    all p : PendingMsg | 
+        p in p.sndr.outbox &&
+        no n : (Node - p.sndr) |
+            p in n.outbox
+
+    // a pending message can't have been received by any node
+    no PendingMsg.rcvrs
+
+    // a sending message hasn't been received by every member
+    all s : SendingMsg |
+        s.rcvrs != Member
+    
+    // a sending message has been received by at least one node
+    all s : SendingMsg |
+        some n : Node |
+            n in s.rcvrs
+        
+    // a sending message is in exactly one member's outbox
+    all s : SendingMsg |
+        one m : Member |
+            s in m.outbox
+
+    // a sent message isn't in any member's outbox
+    no SentMsg.~outbox
+
+    // a sent message has been received by at least one node
+    all s : SentMsg |
+        some n : Node |
+            n in s.rcvrs
+    
+    // a message is either pending, sending or sent
+    all m : Msg |
+        ((m in PendingMsg && m !in (SendingMsg + SentMsg))
+        or (m in SendingMsg && m !in (PendingMsg + SentMsg))
+        or (m in SentMsg && m !in (PendingMsg + SendingMsg)))
+
+    // the outbox can only contain pending messages of itself and
+    // sending messages of the leader
+    all m : Msg, n : Node |
+        m in n.outbox
+        implies
+            (m in PendingMsg && m.sndr = n
+            or
+            m in SendingMsg && m.sndr = Leader)
+
+    // if a node has a message in its outbox that belongs to the leader, then
+    // the node is a member and its in the message's receivers
+    all m : SendingMsg, n : Node |
+        (m.sndr = Leader && m in n.outbox)
+        implies
+            (n in Member && n in m.rcvrs)
+
+    // nodes cannot receive their own messages
+    all m : Msg |
+        m.sndr !in m.rcvrs
 }
 
 
-pred fairness [] {
-    //TODO
+check {
+    always valid[]
 }
 
 
-// TODO: liveness
+//-------------------------------------------------------------------//
 
-// TODO: trace that disproves property 4.
+
+pred fairness[] {
+    fairnessMemberApplication[]
+    and
+    fairnessMemberPromotion[]
+    and
+    fairnessLeaderApplication[]
+    and
+    fairnessLeaderPromotion[]
+    //and
+    //fairnessSendMessage[]
+}
+
+pred fairnessMemberApplication[] {
+    all n : Node - Member, m : Member |
+            (eventually always
+                n !in Member &&
+                all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt)
+            implies (always eventually memberApplication[m, n])
+}
+
+pred fairnessMemberPromotion[] {
+    all n : Node - Member, m : Member |
+            (eventually always
+                n->m in m.qnxt &&
+                n !in Member)
+                implies (always eventually memberPromotion[m, n])
+}
+
+pred fairnessLeaderApplication[] {
+    all n : Node - Leader, l : Leader |
+            (eventually always
+                n in Member &&
+                l != n &&
+                n !in LQueue)
+                implies (always eventually leaderApplication[l, n])
+}
+
+
+pred fairnessLeaderPromotion[] {
+    all n : Node - Leader, l : Leader |
+            (eventually always
+                n in LQueue &&
+                l != n &&
+                n->l in l.lnxt && 
+                no l.outbox &&
+                no SendingMsg)
+                implies (always eventually leaderPromotion[l, n])
+}
+
+/*
+pred fairnessNonMemberExit[] {
+    all n1, n2 : Node - Member |
+        some m : Member |
+            (eventually always
+                (n1->n2) in m.qnxt &&
+                n1 !in Member)
+            implies (always eventually nonMemberExit[m, n1, n2])
+}
+*/
+
+pred fairnessSendMessage[] {
+    all n : Node, msg : Msg |
+        n = msg.sndr implies
+        (one m : Member |
+            (eventually always
+                n in Leader &&
+                m != n &&
+                (n->m) in nxt &&
+                // msg is a pending message
+                msg in PendingMsg &&
+                msg !in SendingMsg &&
+                msg !in SentMsg &&
+                // msg is only in the leader's outbox
+                msg in n.outbox &&
+                msg !in m.outbox &&
+                // l is the message's sender
+                msg.sndr = n &&
+                // m hasn't received msg
+                m !in msg.rcvrs)
+                implies (always eventually broadcastInit[n, m, msg]))
+}
+
+run {
+    #Node = 3
+    #Msg = 1
+    fairness[]
+} for 5
+
+//-------------------------------------------------------------------//
+
+
+pred noExits[] {
+    no m : Member, n1, n2 : Node |
+        nonMemberExit[m, n1, n2]
+
+    no m1, m2 : Member |
+        memberExit[m1, m2]
+}
+
+assert broadcastsTerminate {
+    (#Member >= 2 && noExits[] && fairness[])
+    implies
+    eventually Msg = SentMsg
+}
+
+check broadcastsTerminate
+
+// in a network with at least two nodes, under fairness conditions, all message broadcasts terminate.
+assert broadcastsTerminateWithExits {
+    (#Member >= 2 && fairness[])
+    implies
+    eventually Msg = SentMsg
+}
+
+check broadcastsTerminateWithExits
+
+pred traceDisprove[] {
+    #Msg = 1
+    #Node = 3 // can't be 2 because of leader queue
+    
+    fairness[]
+
+    eventually some m : Member, n1, n2 : Node |
+        nonMemberExit[m, n1, n2]
+        or
+        memberApplication[m, n1]
+}
+
+run {
+    traceDisprove[]
+} for 5
 
 
 //-------------------------------------------------------------------//
@@ -660,4 +941,9 @@ run {
     //trace13[]
     //trace14[]
     //#Node = 2
+} for 5
+
+run {
+    #Node = 2
+    fairness[]
 } for 5

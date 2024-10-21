@@ -363,7 +363,7 @@ pred memberExit[m1 : Member, m2 : Member] {
     m2->m1 in nxt // or "m2.nxt->m1" ?
 
     // postconditions
-    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt) // apparently works without this line??
+    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt)
     Member' = Member - m1
 
     // frame conditions 
@@ -538,13 +538,13 @@ pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     SendingMsg' = SendingMsg - msg
     SentMsg' = SentMsg + msg
     outbox' = outbox - (m->msg)
-    rcvrs' = rcvrs + (msg->l)
 
     // frame conditions
     Member' = Member
     Leader' = Leader
     LQueue' = LQueue
     PendingMsg' = PendingMsg
+    rcvrs' = rcvrs
     nxt' = nxt
     qnxt' = qnxt
     lnxt' = lnxt
@@ -634,9 +634,9 @@ run {
     //trace6[]
     //trace7[]
     //trace8[]
-    //trace9[]
+    trace9[]
     //trace10[]
-    trace11[]
+    //trace11[]
     //trace12[]
     //trace13[]
     //trace14[]
