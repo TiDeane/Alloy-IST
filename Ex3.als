@@ -58,23 +58,23 @@ pred init[] {
 pred trans[] {
     stutter[]
     or
-    some m : Member, n : Node | memberApplication[m, n]
+    (some m : Member, n : Node | memberApplication[m, n])
     or
-    some m : Member, n : Node | memberPromotion[m, n]
+    (some m : Member, n : Node | memberPromotion[m, n])
     or
-    some l : Leader, m : Member | leaderApplication[l, m]
+    (some l : Leader, m : Member | leaderApplication[l, m])
     or
-    some l : Leader, lq : LQueue | leaderPromotion[l, lq]
+    (some l : Leader, lq : LQueue | leaderPromotion[l, lq])
     or
-    some m1, m2 : Member | memberExit[m1, m2]
+    (some m1, m2 : Member | memberExit[m1, m2])
     or
-    some m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2]
+    (some m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2])
     or
-    some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
+    (some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg])
     or
-    some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
+    (some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg])
     or
-    some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
+    (some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg])
 }
 
 pred system[] {
@@ -136,7 +136,7 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // n1 not in a member queue
     all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))
     // n2 is the last node of m's member queue
-    no n_aux : Node | n_aux->n2 in m.qnxt
+    no n2.~(m.qnxt)
 
     // postconditions
     qnxt' = qnxt + (m->(n1->n2))
@@ -258,7 +258,7 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     // l is not m2
     l != m2
     // m2 is the last node of the leader queue
-    no m_aux : Member | l->(m_aux->m2) in lnxt
+    no m2.~(l.lnxt)
 
     // postconditions
     lnxt' = lnxt + (l->(m1->m2))
@@ -453,15 +453,11 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     (l->m) in nxt
     // msg is a pending message
     msg in PendingMsg
-    msg !in SendingMsg
-    msg !in SentMsg
     // msg is only in the leader's outbox
     msg in l.outbox
     msg !in m.outbox
     // l is the message's sender
     msg.sndr = l
-    // m hasn't received msg
-    m !in msg.rcvrs
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -800,78 +796,71 @@ pred fairness[] {
     //fairnessSendMessage[]
 }
 
+// tentar com 2 nodes (member só inclui os members no inicio)
 pred fairnessMemberApplication[] {
-    all n : Node - Member, m : Member |
+    all n1 : Node - Member, n2 : Node |
             (eventually always
-                n !in Member &&
-                all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt)
-            implies (always eventually memberApplication[m, n])
+                n1 !in Member &&
+                n2 in Member &&
+                all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt)
+            implies (always eventually memberApplication[n2, n1])
 }
 
 pred fairnessMemberPromotion[] {
-    all n : Node - Member, m : Member |
+    all n1 : Node - Member, n2 : Node |
             (eventually always
-                n->m in m.qnxt &&
-                n !in Member)
-                implies (always eventually memberPromotion[m, n])
+                n2 in Member &&
+                n1->n2 in n2.qnxt &&
+                n1 !in Member)
+                implies (always eventually memberPromotion[n2, n1])
 }
 
 pred fairnessLeaderApplication[] {
-    all n : Node - Leader, l : Leader |
+    all n1 : Node, n2 : Node |
             (eventually always
-                n in Member &&
-                l != n &&
-                n !in LQueue)
-                implies (always eventually leaderApplication[l, n])
+                n2 in Leader &&
+                n1 in Member &&
+                n2 != n1 &&
+                n1 !in LQueue)
+                implies (always eventually leaderApplication[n2, n1])
 }
-
 
 pred fairnessLeaderPromotion[] {
-    all n : Node - Leader, l : Leader |
+    all n1 : Node - Leader, n2 : Node |
             (eventually always
-                n in LQueue &&
-                l != n &&
-                n->l in l.lnxt && 
-                no l.outbox &&
+                n1 in LQueue &&
+                n2 != n1 &&
+                n1->n2 in n2.lnxt && 
+                no n2.outbox &&
                 no SendingMsg)
-                implies (always eventually leaderPromotion[l, n])
+                implies (always eventually leaderPromotion[n2, n1])
 }
-
-/*
-pred fairnessNonMemberExit[] {
-    all n1, n2 : Node - Member |
-        some m : Member |
-            (eventually always
-                (n1->n2) in m.qnxt &&
-                n1 !in Member)
-            implies (always eventually nonMemberExit[m, n1, n2])
-}
-*/
 
 pred fairnessSendMessage[] {
-    all n : Node, msg : Msg |
-        n = msg.sndr implies
-        (one m : Member |
+    all n1 : Node, msg : Msg |
+        n1 = msg.sndr implies
+        (one n2 : Node |
             (eventually always
-                n in Leader &&
-                m != n &&
-                (n->m) in nxt &&
+                n2 in Member &&
+                n1 in Leader &&
+                n2 != n1 &&
+                (n1->n2) in nxt &&
                 // msg is a pending message
                 msg in PendingMsg &&
                 msg !in SendingMsg &&
                 msg !in SentMsg &&
                 // msg is only in the leader's outbox
-                msg in n.outbox &&
-                msg !in m.outbox &&
+                msg in n1.outbox &&
+                msg !in n2.outbox &&
                 // l is the message's sender
-                msg.sndr = n &&
+                msg.sndr = n1 &&
                 // m hasn't received msg
-                m !in msg.rcvrs)
-                implies (always eventually broadcastInit[n, m, msg]))
+                n2 !in msg.rcvrs)
+                implies (always eventually broadcastInit[n1, n2, msg]))
 }
 
 run {
-    #Node = 3
+    #Node = 2
     #Msg = 1
     fairness[]
 } for 5
@@ -924,10 +913,9 @@ run {
 //-------------------------------------------------------------------//
 
 
-
 run {
     //trace1[]
-    //trace2[]
+    trace2[]
     //trace3[]
     //trace4[]
     //trace5[]
@@ -936,11 +924,11 @@ run {
     //trace8[]
     //trace9[]
     //trace10[]
-    trace11[]
+    //trace11[]
     //trace12[]
     //trace13[]
     //trace14[]
-    //#Node = 2
+    #Node = 4
 } for 5
 
 run {
