@@ -172,9 +172,6 @@ pred memberPromotionAux1[m : Member, n : Node] {
     Member' = Member + n
     nxt' = nxt + (n->m.nxt) - (m->m.nxt) + (m->n)
     qnxt' = qnxt - m->(n->m)
-    // o stor quando estava a explicar usou: no m.qnxt'
-    // se meter só isto, consigo que garantir que o resto
-    // dos qnxt não se alteram?
 
     // frame conditions
     Leader' = Leader
@@ -295,7 +292,7 @@ pred leaderPromotionAux1[l : Leader, lq : LQueue ] {
     l != lq
 
     // postconditions
-    lnxt' = lnxt - (l->(lq->l)) // or " no lnxt' " ?
+    lnxt' = lnxt - (l->(lq->l))
     LQueue' = LQueue - lq
     Leader' = Leader - l + lq
 
@@ -346,7 +343,6 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
 }
 
 // m1 wants to exit, m2.nxt = m1 (m2 will always exists because the Leader can't leave)
-// TODO: this doesn't work with only 2 nodes right now (because there is not leader queue)
 pred memberExit[m1 : Member, m2 : Member] {
     // preconditions
     // m1 and m2 are different
@@ -360,10 +356,10 @@ pred memberExit[m1 : Member, m2 : Member] {
     // m1 has sent all its messages
     no m1.outbox
     // m2 is behind m1
-    m2->m1 in nxt // or "m2.nxt->m1" ?
+    m2->m1 in nxt
 
     // postconditions
-    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt) // apparently works without this line??
+    nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt)
     Member' = Member - m1
 
     // frame conditions 
@@ -385,7 +381,6 @@ pred nonMemberExit[m : Member, n1 : Node, n2 : Node] {
 }
 
 // case where n1 is the last node in the queue
-// TODO: doesn't work without leader queue
 pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // preconditions
     // n is in m member queue
@@ -394,7 +389,7 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // n1 is not a member
     n1 !in Member
     // n1 is the last node of the member queue
-    no n_aux : Node | n_aux->n1 in m.qnxt
+    no n1.~(m.qnxt)
 
     // postconditions
     qnxt' = qnxt - m->(n1->n2) // without leader application this makes it not work
@@ -413,7 +408,6 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
 }
 
 // case where n1 wants to exit, n2 point to n1, n1 points to n3
-// TODO: doesn't work without leader queue 
 pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
     // preconditions
     // n1, n2 points to n1, n1 points to n3
@@ -456,8 +450,6 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // msg is only in the leader's outbox
     msg in l.outbox
     msg !in m.outbox
-    // l is the message's sender
-    msg.sndr = l
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -484,17 +476,11 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // m2 isn't the leader
     m2 !in Leader
     // msg is a sending message
-    Msg !in PendingMsg
     Msg in SendingMsg
-    Msg !in SentMsg
     // msg is in m1's outbox
     msg in m1.outbox
     // msg isn't in m2's outbox
     msg !in m2.outbox
-    // m1 has received msg
-    m1 in msg.rcvrs
-    // m2 hasn't received msg
-    m2 !in msg.rcvrs
 
     // postconditions
     outbox' = outbox - (m1->msg) + (m2->msg)
@@ -518,17 +504,11 @@ pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // m points to l
     (m->l) in nxt
     // msg is a sending message
-    Msg !in PendingMsg
     msg in SendingMsg
-    Msg !in SentMsg
     // msg is in m's outbox
     msg in m.outbox
     // msgsn't in l's outbox
     msg !in l.outbox
-    // m has received msg
-    m in msg.rcvrs
-    // l hasn't received msg
-    l !in msg.rcvrs
 
     // postconditions
     SendingMsg' = SendingMsg - msg
@@ -621,7 +601,7 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 //-------------------------------------------------------------------//
 
 
-pred valid[] {
+pred topologyValid[] {
     // members form a single ring
     all m1, m2 : Member |
         m2 in m1.^nxt
@@ -711,8 +691,10 @@ pred valid[] {
             (n2 -> n3) in Member.qnxt)
         or
         (n2 in Member))
+}
 
-    // a message is only in one member's outbox at a time
+pred messageValid[] {
+        // a message is only in one member's outbox at a time
     all m : Msg |
         lone n : Member |
         m in n.outbox
@@ -775,6 +757,11 @@ pred valid[] {
         m.sndr !in m.rcvrs
 }
 
+pred valid[] {
+    topologyValid[]
+    messageValid[]
+}
+
 
 check {
     always valid[]
@@ -790,33 +777,32 @@ pred fairness[] {
     fairnessMemberPromotion[]
     and
     fairnessLeaderApplication[]
-    and
-    fairnessLeaderPromotion[]
+    //and
+    //fairnessLeaderPromotion[]
     //and
     //fairnessSendMessage[]
 }
 
-// tentar com 2 nodes (member só inclui os members no inicio)
 pred fairnessMemberApplication[] {
     all n1 : Node - Member, n2 : Node |
             (eventually always
                 n1 !in Member &&
                 n2 in Member &&
-                all m_aux : Member, n_aux : Node | m_aux->(n1->n_aux) !in qnxt)
-            implies (always eventually memberApplication[n2, n1])
+                all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt)))
+                implies (always eventually memberApplication[n2, n1])
 }
 
 pred fairnessMemberPromotion[] {
     all n1 : Node - Member, n2 : Node |
             (eventually always
+                n1 !in Member &&
                 n2 in Member &&
-                n1->n2 in n2.qnxt &&
-                n1 !in Member)
+                n2->(n1->n2) in qnxt)
                 implies (always eventually memberPromotion[n2, n1])
 }
 
 pred fairnessLeaderApplication[] {
-    all n1 : Node, n2 : Node |
+    all n1 : Node - Leader, n2 : Node |
             (eventually always
                 n2 in Leader &&
                 n1 in Member &&
@@ -860,7 +846,7 @@ pred fairnessSendMessage[] {
 }
 
 run {
-    #Node = 2
+    #Node = 3
     #Msg = 1
     fairness[]
 } for 5
@@ -915,9 +901,9 @@ run {
 
 run {
     //trace1[]
-    trace2[]
+    //trace2[]
     //trace3[]
-    //trace4[]
+    trace4[]
     //trace5[]
     //trace6[]
     //trace7[]
