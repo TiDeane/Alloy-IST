@@ -775,8 +775,8 @@ pred fairness[] {
     fairnessMemberApplication[]
     and
     fairnessMemberPromotion[]
-    and
-    fairnessLeaderApplication[]
+    //and
+    //fairnessLeaderApplication[]
     //and
     //fairnessLeaderPromotion[]
     //and
@@ -797,15 +797,15 @@ pred fairnessMemberPromotion[] {
             (eventually always
                 n1 !in Member &&
                 n2 in Member &&
-                n2->(n1->n2) in qnxt)
+                no n1.~(n2.qnxt))
                 implies (always eventually memberPromotion[n2, n1])
 }
 
 pred fairnessLeaderApplication[] {
     all n1 : Node - Leader, n2 : Node |
             (eventually always
-                n2 in Leader &&
                 n1 in Member &&
+                n2 in Leader &&
                 n2 != n1 &&
                 n1 !in LQueue)
                 implies (always eventually leaderApplication[n2, n1])
@@ -813,13 +813,13 @@ pred fairnessLeaderApplication[] {
 
 pred fairnessLeaderPromotion[] {
     all n1 : Node - Leader, n2 : Node |
-            (eventually always
-                n1 in LQueue &&
-                n2 != n1 &&
-                n1->n2 in n2.lnxt && 
-                no n2.outbox &&
-                no SendingMsg)
-                implies (always eventually leaderPromotion[n2, n1])
+        (eventually always
+            n1 in LQueue &&
+            n2 != n1 &&
+            n1->n2 in n2.lnxt && 
+            no n2.outbox &&
+            no SendingMsg)
+            implies (always eventually leaderPromotion[n2, n1])
 }
 
 pred fairnessSendMessage[] {
