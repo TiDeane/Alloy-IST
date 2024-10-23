@@ -775,10 +775,10 @@ pred fairness[] {
     fairnessMemberApplication[]
     and
     fairnessMemberPromotion[]
-    //and
-    //fairnessLeaderApplication[]
-    //and
-    //fairnessLeaderPromotion[]
+    and
+    fairnessLeaderApplication[]
+    and
+    fairnessLeaderPromotion[]
     //and
     //fairnessSendMessage[]
 }
@@ -806,8 +806,9 @@ pred fairnessLeaderApplication[] {
             (eventually always
                 n1 in Member &&
                 n2 in Leader &&
-                n2 != n1 &&
-                n1 !in LQueue)
+                n1 != n2 &&
+                n1 !in n2.lnxt.univ &&
+                no n1.~(n2.lnxt))
                 implies (always eventually leaderApplication[n2, n1])
 }
 
@@ -815,8 +816,9 @@ pred fairnessLeaderPromotion[] {
     all n1 : Node - Leader, n2 : Node |
         (eventually always
             n1 in LQueue &&
-            n2 != n1 &&
-            n1->n2 in n2.lnxt && 
+            n2 in Leader &&
+            n1 != n2 &&
+            no n1.~(n2.lnxt) && 
             no n2.outbox &&
             no SendingMsg)
             implies (always eventually leaderPromotion[n2, n1])
@@ -848,6 +850,7 @@ pred fairnessSendMessage[] {
 run {
     #Node = 3
     #Msg = 1
+    noExits[]
     fairness[]
 } for 5
 
@@ -855,10 +858,10 @@ run {
 
 
 pred noExits[] {
-    no m : Member, n1, n2 : Node |
+    always no m : Member, n1, n2 : Node |
         nonMemberExit[m, n1, n2]
 
-    no m1, m2 : Member |
+    always no m1, m2 : Member |
         memberExit[m1, m2]
 }
 
@@ -903,18 +906,19 @@ run {
     //trace1[]
     //trace2[]
     //trace3[]
-    trace4[]
+    //trace4[]
     //trace5[]
     //trace6[]
     //trace7[]
-    //trace8[]
+    trace8[]
     //trace9[]
     //trace10[]
     //trace11[]
     //trace12[]
     //trace13[]
     //trace14[]
-    #Node = 4
+    #Node = 3
+    #Msg = 1
 } for 5
 
 run {
