@@ -779,8 +779,8 @@ pred fairness[] {
     fairnessLeaderApplication[]
     and
     fairnessLeaderPromotion[]
-    //and
-    //fairnessSendMessage[]
+    and
+    fairnessSendMessage[]
 }
 
 pred fairnessMemberApplication[] {
@@ -825,30 +825,19 @@ pred fairnessLeaderPromotion[] {
 }
 
 pred fairnessSendMessage[] {
-    all n1 : Node, msg : Msg |
-        n1 = msg.sndr implies
-        (one n2 : Node |
-            (eventually always
-                n2 in Member &&
-                n1 in Leader &&
-                n2 != n1 &&
-                (n1->n2) in nxt &&
-                // msg is a pending message
-                msg in PendingMsg &&
-                msg !in SendingMsg &&
-                msg !in SentMsg &&
-                // msg is only in the leader's outbox
-                msg in n1.outbox &&
-                msg !in n2.outbox &&
-                // l is the message's sender
-                msg.sndr = n1 &&
-                // m hasn't received msg
-                n2 !in msg.rcvrs)
-                implies (always eventually broadcastInit[n1, n2, msg]))
+    all n1, n2 : Node, msg : Msg |
+        (eventually always
+            n1 in Leader &&
+            n2 in (Member - Leader) &&
+            (n1->n2) in nxt &&
+            msg in PendingMsg &&
+            msg in n1.outbox &&
+            msg.sndr = n1)
+            implies (always eventually broadcastInit[n1, n2, msg])
 }
 
 run {
-    #Node = 3
+    #Node = 2
     #Msg = 1
     noExits[]
     fairness[]
