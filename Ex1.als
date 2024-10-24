@@ -187,7 +187,9 @@ fact {
 
 // the Leader is the sender of every sending message
 fact {
-  Leader = SendingMsg.sndr 
+  #SendingMsg > 0
+    implies
+      Leader = SendingMsg.sndr 
 }
 
   // a sending message has been received by at least one node
