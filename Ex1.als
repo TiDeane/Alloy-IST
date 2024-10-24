@@ -1,27 +1,24 @@
-sig Node {}
-
-sig Member in Node {
-  nxt: lone Member,
-  qnxt : Node -> lone Node,
+sig Node {
   outbox: set Msg
 }
 
+sig Member in Node { 
+  nxt: one Node, 
+  qnxt : Node -> lone Node 
+}
+
 one sig Leader in Member {
-  lnxt: Node -> lone Node
+   lnxt: Member -> lone Member
 }
 
 sig LQueue in Member {}
 
 abstract sig Msg {
-  sndr: Node,
-  rcvrs: set Node
+  sndr: Node, 
+  rcvrs: set Node 
 }
 
-sig SentMsg extends Msg {}
-
-sig SendingMsg extends Msg {}
-
-sig PendingMsg extends Msg {}
+sig SentMsg, SendingMsg, PendingMsg extends Msg {}
 
 
 //-------------------------------------------------------------------//
@@ -36,16 +33,14 @@ fact {
 
 // a member may only point to itself if it's the only member 
 fact {
-  // there might be a better way to do this
-  #Member > 1
+  (#Member > 1)
   implies
-  (all m : Member |
-    m.nxt != m)
+  (no iden & nxt)
 }
 
 // no back and forth loops 
 fact {
-  #Member > 1
+  (#Member > 2)
   implies
   (nxt != ~nxt)
 }
@@ -54,91 +49,67 @@ fact {
 //-------------------------------------------------------------------//
 
 
-// nodes in the leader queue are Members and LQueue
-fact {
-  all n1, n2 : Node |
-    (n1 -> n2) in Leader.lnxt
-    implies
-    (n1 in LQueue && n2 in Member)
-}
-
-// every LQueue node is part of the leader queue
-fact {
-  all lq : LQueue |
-    one n : Node |
-      (lq -> n) in Leader.lnxt
-}
-
-// nodes only appear in the leader queue once
-fact {
-  all n1 : Node | 
-    lone n2 : Node | 
-      (n2 -> n1) in Leader.lnxt
-}
-
 // nodes in the leader queue can't point to themselves
 fact {
   no n1 : Node |
     (n1 -> n1) in Leader.lnxt
 }
 
+// source nodes in the leader queue are LQueue nodes
+fact {
+  all n1, n2 : Node |
+    ((n1 -> n2) in Leader.lnxt)
+    implies
+    (n1 in LQueue && n2 in Member)
+}
+
+// every LQueue node is part of the leader queue
+fact {
+  LQueue in Leader.lnxt.univ
+}
+
+// nodes only appear in the leader queue once
+fact {
+  all m1 : Member | 
+    lone m2 : Member | 
+      (m2 -> m1) in Leader.lnxt
+}
+
 // no back and forth loops
 fact {
-  no n1, n2 : Node |
-    ((n1 -> n2) in Leader.lnxt &&
-    (n2 -> n1) in Leader.lnxt)
+  no m1, m2 : Member |
+    ((m1 -> m2) in Leader.lnxt &&
+    (m2 -> m1) in Leader.lnxt)
 }
 
 // the leader queue functions as a queue
 fact {
-  all n1, n2 : Node | 
-    (n1 -> n2) in Leader.lnxt
+  all m1, m2 : Member | 
+    ((m1 -> m2) in Leader.lnxt)
     implies 
-    ((one n3 : Node |
-      (n2 -> n3) in Leader.lnxt)
-    or
-    (n2 in Leader))
-  
-  // Or this?
-  /*
-  all n1 : Node |
-    (n1 in Leader.qnxt.univ)
-    implies
-    (one n2 : Node |
-      n1 -> n2 in Leader.lnxt)
+      ((one m3 : Member |
+        (m2 -> m3) in Leader.lnxt)
       or
-      (n1 in Leader)
-  */
+      (m2 in Leader))
 }
 
-// the leader is the end of the queue
+// the leader doesn't point to anything in the leader queue
 fact {
-  (no n : Node |
-    (Leader -> n) in Leader.lnxt)
-  &&
-  (lone n : Node |
-    (n -> Leader) in Leader.lnxt)
+  no l : Leader |
+    l in Leader.lnxt.univ
+}
+
+// if the leader queue isn't empty then it ends on the leader
+fact {
+  (Leader.lnxt.univ != none)
+  implies
+  (one m : Member |
+    (m -> Leader) in Leader.lnxt)
 }
 
 
 //-------------------------------------------------------------------//
 
-
-// nodes in a member queue are not members
-fact {
-  all n1, n2 : Node |
-    (n1 -> n2) in Member.qnxt
-    implies
-    (n1 !in Member)
-
-  // Or this?
-  /*
-  all n : Node |
-    (n in Member.qnxt.univ
-    implies
-    n !in Member)
-  */
-}
 
 // nodes in the member queue can't point to themselves
 fact {
@@ -146,7 +117,15 @@ fact {
     (n1 -> n1) in Member.qnxt
 }
 
-// member queues end in a member
+// source nodes in a member queue are not members
+fact {
+  all n : Node |
+    (n in Member.qnxt.univ)
+    implies
+    (n !in Member)
+}
+
+// each member only has one member queue
 fact {
   all m : Member |
     lone n : Node |
@@ -157,7 +136,7 @@ fact {
 fact {
   all n1 : Node | 
     lone n2 : Node | 
-      (n2 -> n1) in Member.lnxt
+      (n2 -> n1) in Member.qnxt
 }
 
 // nodes can only appear in one member queue at a time
@@ -170,39 +149,12 @@ fact {
 // the member queue functions as a queue
 fact {
   all n1, n2 : Node | 
-    (n1 -> n2) in Member.qnxt
+    ((n1 -> n2) in Member.qnxt)
     implies 
-    ((one n3 : Node |
-      (n2 -> n3) in Member.qnxt)
-    or
-    (n2 in Member))
-  
-  // Or this?
-  /*
-  all n1 : Node |
-  (n1 in Member.qnxt.univ
-  implies
-  (one n2 : Node |
-    n1 -> n2 in Member.qnxt)
-    or
-    (n1 in Member))
-  */
-}
-
-// TODO: remove this at the end
-// for debugging: two member queues have two non-member nodes
-fact {
-  some m1, m2 : Member |
-    m1 != m2 &&
-    some n1, n2 : Node - Member |
-      n1 != n2 &&
-      (n1 -> n2) in m1.qnxt &&
-      (n2 -> m1) in m1.qnxt &&
-
-    some n3, n4 : Node - Member |
-      n3 != n4 &&
-      (n3 -> n4) in m2.qnxt &&
-      (n4 -> m2) in m2.qnxt
+      ((one n3 : Node |
+        (n2 -> n3) in Member.qnxt)
+      or
+      (n2 in Member))
 }
 
 
@@ -229,11 +181,61 @@ fact {
   no PendingMsg.rcvrs
 }
 
+// the Leader is the sender of every sending message
+fact {
+  Leader = SendingMsg.sndr 
+}
+
+  // a sending message has been received by at least one node
+  fact {
+    all s : SendingMsg |
+      some n : Node |
+        n in s.rcvrs
+  }
+
+// a sending message is in at least one member's outbox
+fact {
+  all s : SendingMsg |
+    one m : Member |
+      s in m.outbox
+}
+
 // a sent message isn't in any member's outbox
 fact {
+  no SentMsg.~outbox
+}
+
+// a sent message has been received by at least one node
+fact {
   all s : SentMsg |
-    no m : Member |
-      s in m.outbox
+    some n : Node |
+      n in s.rcvrs
+}
+
+// the outbox can only contain pending messages of itself and
+// sending messages of the leader
+fact {
+  all m : Msg, n : Node |
+    m in n.outbox
+    implies
+      (m in PendingMsg && m.sndr = n
+      or
+      m in SendingMsg && m.sndr = Leader)
+}
+
+// if a node has a message in its outbox that belongs to the leader, then
+// the node is a member and its in the message's receivers
+fact {
+  all m : SendingMsg, n : Node |
+    (m.sndr = Leader && m in n.outbox)
+    implies
+        (n in Member && n in m.rcvrs)
+}
+
+// nodes cannot receive their own messages
+fact {
+  all m : Msg |
+    m.sndr !in m.rcvrs
 }
 
 // note: intuitively, a sent message has been received by every member...
@@ -251,16 +253,21 @@ fun visualizeLeaderQ[] : Node -> lone Node {
   Leader.lnxt
 }
 
+pred trace1[] {
+  #Node >= 5
+  #LQueue >= 1
+  #SentMsg >= 1
+  #SendingMsg >= 1
+  #PendingMsg >= 1
 
-//TODO: for the visualization, two members should have non-empty member queues
-// currently we have a fact that guarantees two members have members queues
-// with at least two non-members, but it is for debugging and should be removed
-// later on
+  // at least two members have non-empty member queues
+  some m1, m2 : Member |
+    m1 != m2 &&
+    some n1, n2 : Node - Member |
+      n1 != n2 &&
+      (n1 -> m1) in m1.qnxt &&
+      (n2 -> m2) in m2.qnxt
+}
 
 
-run {#Node >= 5
-     #LQueue >= 1
-     #SentMsg >= 1
-     #SendingMsg >= 1
-     #PendingMsg >= 1}
-     for 8
+run { trace1[] } for 8
