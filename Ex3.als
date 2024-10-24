@@ -731,10 +731,9 @@ pred messageValid[] {
             n in s.rcvrs
     
     // a message is either pending, sending or sent
-    all m : Msg |
-        ((m in PendingMsg && m !in (SendingMsg + SentMsg))
-        or (m in SendingMsg && m !in (PendingMsg + SentMsg))
-        or (m in SentMsg && m !in (PendingMsg + SendingMsg)))
+    no (PendingMsg & SendingMsg)
+    no (PendingMsg & SentMsg)
+    no (SendingMsg & SentMsg)
 
     // the outbox can only contain pending messages of itself and
     // sending messages of the leader
