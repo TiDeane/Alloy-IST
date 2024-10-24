@@ -226,6 +226,8 @@ pred leaderApplicationAux1[l : Leader, m : Member] {
     no LQueue
     // l is not m
     l != m
+    // m has messages to send
+    m in PendingMsg.sndr
 
     // postconditions
     lnxt' = lnxt + (l->(m->l))
@@ -256,6 +258,8 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     l != m2
     // m2 is the last node of the leader queue
     no m2.~(l.lnxt)
+    // m1 has messages to send
+    m1 in PendingMsg.sndr
 
     // postconditions
     lnxt' = lnxt + (l->(m1->m2))
@@ -449,7 +453,7 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     msg in PendingMsg
     // msg is only in the leader's outbox
     msg in l.outbox
-    msg !in m.outbox
+    msg !in m.outbox // TODO: is this needed?
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -470,7 +474,7 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
 // m1 redirects message to m2
 pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // preconditions
-    m1 != m2
+    m1 != m2 // TODO: is this one needed?
     // m1 points to m2
     (m1->m2) in nxt
     // m2 isn't the leader
@@ -480,7 +484,7 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // msg is in m1's outbox
     msg in m1.outbox
     // msg isn't in m2's outbox
-    msg !in m2.outbox
+    msg !in m2.outbox // TODO: is this one needed?
 
     // postconditions
     outbox' = outbox - (m1->msg) + (m2->msg)
@@ -500,15 +504,15 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
 
 pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // preconditions
-    l != m
+    l != m // TODO: is this one needed?
     // m points to l
     (m->l) in nxt
     // msg is a sending message
     msg in SendingMsg
     // msg is in m's outbox
     msg in m.outbox
-    // msgsn't in l's outbox
-    msg !in l.outbox
+    // msg isn't in l's outbox
+    msg !in l.outbox // TODO: is this one needed?
 
     // postconditions
     SendingMsg' = SendingMsg - msg
@@ -778,11 +782,15 @@ pred fairness[] {
     and
     fairnessLeaderPromotion[]
     and
-    fairnessSendMessage[]
+    fairnessBroadcastInit[]
+    and
+    fairnessRedirectMessage[]
+    and
+    fairnessTerminateBroadcast[]
 }
 
 pred fairnessMemberApplication[] {
-    all n1 : Node, n2 : Node |
+    all n1, n2 : Node |
             (eventually always
                 (n1 !in Member &&
                 n2 in Member &&
@@ -792,7 +800,7 @@ pred fairnessMemberApplication[] {
 
 pred fairnessMemberPromotion[] {
     // seems to be the same as "n1 : Node - Member"
-    all n1 : Node, n2 : Node |
+    all n1, n2 : Node |
             (eventually always
                 (n1 !in Member &&
                 n2 in Member &&
@@ -802,7 +810,7 @@ pred fairnessMemberPromotion[] {
 
 pred fairnessLeaderApplication[] {
     // seems to be the same as "n1 : Node - Member"
-    all n1 : Node, n2 : Node |
+    all n1, n2 : Node |
             (eventually always
                 (n1 in Member &&
                 n1 !in LQueue &&
@@ -815,7 +823,7 @@ pred fairnessLeaderApplication[] {
 }
 
 pred fairnessLeaderPromotion[] {
-    all n1 : Node, n2 : Node |
+    all n1, n2 : Node |
         (eventually always
             (n1 in LQueue &&
             n2 in Leader &&
@@ -826,16 +834,37 @@ pred fairnessLeaderPromotion[] {
             implies (always eventually leaderPromotion[n2, n1])
 }
 
-pred fairnessSendMessage[] {
+pred fairnessBroadcastInit[] {
     all n1, n2 : Node, msg : Msg |
         (eventually always
             (n1 in Leader &&
-            n2 in (Member - Leader) &&
+            n2 in Member &&
             (n1->n2) in nxt &&
             msg in PendingMsg &&
-            msg in n1.outbox &&
-            msg.sndr = n1))
+            msg in n1.outbox))
             implies (always eventually broadcastInit[n1, n2, msg])
+}
+
+pred fairnessRedirectMessage[] {
+    all n1, n2 : Node, msg : Msg |
+        (eventually always
+            (n1 in Member &&
+            n2 in Member &&
+            (n1->n2) in nxt &&
+            msg in SendingMsg &&
+            msg in n1.outbox))
+            implies (always eventually redirectMessage[n1, n2, msg])
+}
+
+pred fairnessTerminateBroadcast[] {
+    all n1, n2 : Node, msg : Msg |
+        (eventually always
+            (n1 in Member &&
+            n2 in Leader &&
+            (n1->n2) in nxt &&
+            msg in SendingMsg &&
+            msg in n1.outbox))
+            implies (always eventually terminateBroadcast[n2, n1, msg])
 }
 
 run {
@@ -845,6 +874,7 @@ run {
     eventually #Member >= 2
     #Msg = 2
     #Leader.outbox = 1
+    all n : Node | #n.outbox = 1
     fairness[]
 } for 13 steps
 
