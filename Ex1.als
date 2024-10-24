@@ -107,6 +107,10 @@ fact {
     (m -> Leader) in Leader.lnxt)
 }
 
+// a node is in the leader queue only if it has messages to send
+fact {
+  all lq : LQueue | lq in PendingMsg.sndr
+}
 
 //-------------------------------------------------------------------//
 

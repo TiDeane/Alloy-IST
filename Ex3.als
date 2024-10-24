@@ -90,7 +90,6 @@ fact {
 //-------------------------------------------------------------------//
 
 pred memberApplication[m : Member, n : Node] {
-    //m = Leader // to remove
     memberApplicationAux1[m, n]
     or
     some n2 : Node | memberApplicationAux2[m, n, n2]
@@ -447,7 +446,7 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
 
 pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // preconditions
-    m != l
+    m != l // TODO: is this one needed?
     (l->m) in nxt
     // msg is a pending message
     msg in PendingMsg
@@ -662,6 +661,9 @@ pred topologyValid[] {
         (one m : Member |
             (m -> Leader) in Leader.lnxt)
 
+    // a node is in the leader queue only if it has messages to send
+    all lq : LQueue | lq in PendingMsg.sndr
+
     // nodes in the member queue can't point to themselves
     no n1 : Node |
         (n1 -> n1) in Member.qnxt
@@ -713,7 +715,7 @@ pred messageValid[] {
     no PendingMsg.rcvrs
 
     // the Leader is the sender of every sending message
-    Leader = SendingMsg.sndr 
+    Leader = SendingMsg.sndr
     
     // a sending message has been received by at least one node
     all s : SendingMsg |
@@ -795,33 +797,33 @@ pred fairness[] {
 
 pred fairnessMemberApplication[] {
     all n1, n2 : Node |
-            (eventually always
-                (n1 !in Member &&
-                n2 in Member &&
-                all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))))
-                implies (always eventually memberApplication[n2, n1])
+        (eventually always
+            (n1 !in Member &&
+            n2 in Member &&
+            all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))))
+            implies (always eventually memberApplication[n2, n1])
 }
 
 pred fairnessMemberPromotion[] {
     // seems to be the same as "n1 : Node - Member"
     all n1, n2 : Node |
-            (eventually always
-                (n1 !in Member &&
-                n2 in Member &&
-                no n1.~(n2.qnxt)))
-                implies (always eventually memberPromotion[n2, n1])
+        (eventually always
+            (n1 !in Member &&
+            n2 in Member &&
+            no n1.~(n2.qnxt)))
+            implies (always eventually memberPromotion[n2, n1])
 }
 
 pred fairnessLeaderApplication[] {
     // seems to be the same as "n1 : Node - Member"
     all n1, n2 : Node |
-            (eventually always
-                (n1 in Member &&
-                n1 !in LQueue &&
-                n2 in Leader &&
-                n1 != n2 &&
-                n1 in PendingMsg.sndr))
-                implies (always eventually leaderApplication[n2, n1])
+        (eventually always
+            (n1 in Member &&
+            n1 !in LQueue &&
+            n2 in Leader &&
+            n1 != n2 &&
+            n1 in PendingMsg.sndr))
+            implies (always eventually leaderApplication[n2, n1])
 }
 
 pred fairnessLeaderPromotion[] {
