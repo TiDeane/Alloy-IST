@@ -715,7 +715,9 @@ pred messageValid[] {
     no PendingMsg.rcvrs
 
     // the Leader is the sender of every sending message
-    Leader = SendingMsg.sndr
+    #SendingMsg > 0
+        implies
+            Leader = SendingMsg.sndr
     
     // a sending message has been received by at least one node
     all s : SendingMsg |
