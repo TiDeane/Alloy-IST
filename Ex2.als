@@ -58,23 +58,23 @@ pred init[] {
 pred trans[] {
     stutter[]
     or
-    some m : Member, n : Node | memberApplication[m, n]
+    (some m : Member, n : Node | memberApplication[m, n])
     or
-    some m : Member, n : Node | memberPromotion[m, n]
+    (some m : Member, n : Node | memberPromotion[m, n])
     or
-    some l : Leader, m : Member | leaderApplication[l, m]
+    (some l : Leader, m : Member | leaderApplication[l, m])
     or
-    some l : Leader, lq : LQueue | leaderPromotion[l, lq]
+    (some l : Leader, lq : LQueue | leaderPromotion[l, lq])
     or
-    some m1, m2 : Member | memberExit[m1, m2]
+    (some m1, m2 : Member | memberExit[m1, m2])
     or
-    some m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2]
+    (some m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2])
     or
-    some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
+    (some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg])
     or
-    some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
+    (some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg])
     or
-    some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
+    (some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg])
 }
 
 pred system[] {
@@ -104,7 +104,7 @@ pred memberApplicationAux1[m : Member, n : Node] {
     // n is not a member
     n !in Member
     // n1 not in a member queue
-    all m_aux : Member, n_aux : Node | m_aux->(n->n_aux) !in qnxt
+    all m_aux : Member | n !in m_aux.^(~(m_aux.qnxt))
 
     // postconditions
     qnxt' = qnxt + (m->(n->m))
@@ -136,7 +136,7 @@ pred memberApplicationAux2[m : Member, n1 : Node, n2 : Node] {
     // n1 not in a member queue
     all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))
     // n2 is the last node of m's member queue
-    no n_aux : Node | n_aux->n2 in m.qnxt
+    no n2.~(m.qnxt)
 
     // postconditions
     qnxt' = qnxt + (m->(n1->n2))
@@ -172,9 +172,6 @@ pred memberPromotionAux1[m : Member, n : Node] {
     Member' = Member + n
     nxt' = nxt + (n->m.nxt) - (m->m.nxt) + (m->n)
     qnxt' = qnxt - m->(n->m)
-    // o stor quando estava a explicar usou: no m.qnxt'
-    // se meter só isto, consigo que garantir que o resto
-    // dos qnxt não se alteram?
 
     // frame conditions
     Leader' = Leader
@@ -229,6 +226,8 @@ pred leaderApplicationAux1[l : Leader, m : Member] {
     no LQueue
     // l is not m
     l != m
+    // m has messages to send
+    m in PendingMsg.sndr
 
     // postconditions
     lnxt' = lnxt + (l->(m->l))
@@ -258,7 +257,9 @@ pred leaderApplicationAux2[l : Leader, m1 : Member, m2 : Member] {
     // l is not m2
     l != m2
     // m2 is the last node of the leader queue
-    no m_aux : Member | l->(m_aux->m2) in lnxt
+    no m2.~(l.lnxt)
+    // m1 has messages to send
+    m1 in PendingMsg.sndr
 
     // postconditions
     lnxt' = lnxt + (l->(m1->m2))
@@ -295,7 +296,7 @@ pred leaderPromotionAux1[l : Leader, lq : LQueue ] {
     l != lq
 
     // postconditions
-    lnxt' = lnxt - (l->(lq->l)) // or " no lnxt' " ?
+    lnxt' = lnxt - (l->(lq->l))
     LQueue' = LQueue - lq
     Leader' = Leader - l + lq
 
@@ -346,7 +347,6 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
 }
 
 // m1 wants to exit, m2.nxt = m1 (m2 will always exists because the Leader can't leave)
-// TODO: this doesn't work with only 2 nodes right now (because there is not leader queue)
 pred memberExit[m1 : Member, m2 : Member] {
     // preconditions
     // m1 and m2 are different
@@ -360,7 +360,7 @@ pred memberExit[m1 : Member, m2 : Member] {
     // m1 has sent all its messages
     no m1.outbox
     // m2 is behind m1
-    m2->m1 in nxt // or "m2.nxt->m1" ?
+    m2->m1 in nxt
 
     // postconditions
     nxt' = nxt - (m2->m1) + (m2->m1.nxt) - (m1->m1.nxt)
@@ -385,7 +385,6 @@ pred nonMemberExit[m : Member, n1 : Node, n2 : Node] {
 }
 
 // case where n1 is the last node in the queue
-// TODO: doesn't work without leader queue
 pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // preconditions
     // n is in m member queue
@@ -394,7 +393,7 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // n1 is not a member
     n1 !in Member
     // n1 is the last node of the member queue
-    no n_aux : Node | n_aux->n1 in m.qnxt
+    no n1.~(m.qnxt)
 
     // postconditions
     qnxt' = qnxt - m->(n1->n2) // without leader application this makes it not work
@@ -413,7 +412,6 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
 }
 
 // case where n1 wants to exit, n2 point to n1, n1 points to n3
-// TODO: doesn't work without leader queue 
 pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
     // preconditions
     // n1, n2 points to n1, n1 points to n3
@@ -449,19 +447,13 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
 
 pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // preconditions
-    m != l
+    m != l // TODO: is this one needed?
     (l->m) in nxt
     // msg is a pending message
     msg in PendingMsg
-    msg !in SendingMsg
-    msg !in SentMsg
     // msg is only in the leader's outbox
     msg in l.outbox
-    msg !in m.outbox
-    // l is the message's sender
-    msg.sndr = l
-    // m hasn't received msg
-    m !in msg.rcvrs
+    msg !in m.outbox // TODO: is this needed?
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -482,23 +474,17 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
 // m1 redirects message to m2
 pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // preconditions
-    m1 != m2
+    m1 != m2 // TODO: is this one needed?
     // m1 points to m2
     (m1->m2) in nxt
     // m2 isn't the leader
     m2 !in Leader
     // msg is a sending message
-    Msg !in PendingMsg
     Msg in SendingMsg
-    Msg !in SentMsg
     // msg is in m1's outbox
     msg in m1.outbox
     // msg isn't in m2's outbox
-    msg !in m2.outbox
-    // m1 has received msg
-    m1 in msg.rcvrs
-    // m2 hasn't received msg
-    m2 !in msg.rcvrs
+    msg !in m2.outbox // TODO: is this one needed?
 
     // postconditions
     outbox' = outbox - (m1->msg) + (m2->msg)
@@ -518,21 +504,15 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
 
 pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // preconditions
-    l != m
+    l != m // TODO: is this one needed?
     // m points to l
     (m->l) in nxt
     // msg is a sending message
-    Msg !in PendingMsg
     msg in SendingMsg
-    Msg !in SentMsg
     // msg is in m's outbox
     msg in m.outbox
-    // msgsn't in l's outbox
-    msg !in l.outbox
-    // m has received msg
-    m in msg.rcvrs
-    // l hasn't received msg
-    l !in msg.rcvrs
+    // msg isn't in l's outbox
+    msg !in l.outbox // TODO: is this one needed?
 
     // postconditions
     SendingMsg' = SendingMsg - msg
