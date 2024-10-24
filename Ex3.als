@@ -779,6 +779,10 @@ pred fairness[] {
     fairnessLeaderPromotion[]
     and
     fairnessSendMessage[]
+    and
+    fairnessRedirectMessage[]
+    and
+    fairnessTerminateBroadcast[]
 }
 
 pred fairnessMemberApplication[] {
@@ -808,8 +812,6 @@ pred fairnessLeaderApplication[] {
                 n1 !in LQueue &&
                 n2 in Leader &&
                 n1 != n2 &&
-                //n1 !in n2.lnxt.univ &&
-                //no n1.~(n2.lnxt) &&
                 n1 in PendingMsg.sndr))
                 implies (always eventually leaderApplication[n2, n1])
 }
@@ -820,7 +822,6 @@ pred fairnessLeaderPromotion[] {
             (n1 in LQueue &&
             n2 in Leader &&
             n1 != n2 &&
-            //no n1.~(n2.lnxt) && 
             no n2.outbox &&
             no SendingMsg))
             implies (always eventually leaderPromotion[n2, n1])
@@ -836,6 +837,28 @@ pred fairnessSendMessage[] {
             msg in n1.outbox &&
             msg.sndr = n1))
             implies (always eventually broadcastInit[n1, n2, msg])
+}
+
+pred fairnessRedirectMessage[] {
+    all n1, n2 : Node, msg : Msg |
+        (eventually always
+            (n1 in Member &&
+            n2 in Member &&
+            (n1->n2) in nxt &&
+            msg in SendingMsg &&
+            msg in n1.outbox))
+            implies (always eventually redirectMessage[n1, n2, msg])
+}
+
+pred fairnessTerminateBroadcast[] {
+    all n1, n2 : Node, msg : Msg |
+        (eventually always
+            (n1 in Member &&
+            n2 in Leader &&
+            (n1->n2) in nxt &&
+            msg in SendingMsg &&
+            msg in n1.outbox))
+            implies (always eventually terminateBroadcast[n2, n1, msg])
 }
 
 run {
@@ -859,38 +882,26 @@ pred noExits[] {
         memberExit[m1, m2]
 }
 
+// Liveness condition 3.(a)
 assert broadcastsTerminate {
     (eventually #Member >= 2 && #Msg = 1 && noExits[] && fairness[])
     implies
     eventually Msg = SentMsg
 }
 
+// Assertion holds
 check broadcastsTerminate
 
-// in a network with at least two nodes, under fairness conditions, all message broadcasts terminate.
+
+// Liveness condition 4.
 assert broadcastsTerminateWithExits {
-    (eventually #Member >= 3 && #Msg = 1 && eventually #SendingMsg = 1 && fairness[])
+    (eventually #Member >= 2 && #Msg = 1 && fairness[])
     implies
     eventually Msg = SentMsg
 }
 
+// Assertion doesn't hold
 check broadcastsTerminateWithExits
-
-pred traceDisprove[] {
-    #Msg = 1
-    #Node = 3 // can't be 2 because of leader queue
-    
-    fairness[]
-
-    eventually some m : Member, n1, n2 : Node |
-        nonMemberExit[m, n1, n2]
-        or
-        memberApplication[m, n1]
-}
-
-run {
-    traceDisprove[]
-} for 5
 
 
 //-------------------------------------------------------------------//
@@ -913,9 +924,4 @@ run {
     //trace14[]
     #Node = 3
     #Msg = 1
-} for 5
-
-run {
-    #Node = 2
-    fairness[]
 } for 5
