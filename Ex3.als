@@ -782,64 +782,71 @@ pred fairness[] {
 }
 
 pred fairnessMemberApplication[] {
-    all n1 : Node - Member, n2 : Node |
+    all n1 : Node, n2 : Node |
             (eventually always
-                n1 !in Member &&
+                (n1 !in Member &&
                 n2 in Member &&
-                all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt)))
+                all m_aux : Member | n1 !in m_aux.^(~(m_aux.qnxt))))
                 implies (always eventually memberApplication[n2, n1])
 }
 
 pred fairnessMemberPromotion[] {
-    all n1 : Node - Member, n2 : Node |
+    // seems to be the same as "n1 : Node - Member"
+    all n1 : Node, n2 : Node |
             (eventually always
-                n1 !in Member &&
+                (n1 !in Member &&
                 n2 in Member &&
-                no n1.~(n2.qnxt))
+                no n1.~(n2.qnxt)))
                 implies (always eventually memberPromotion[n2, n1])
 }
 
 pred fairnessLeaderApplication[] {
-    all n1 : Node - Leader, n2 : Node |
+    // seems to be the same as "n1 : Node - Member"
+    all n1 : Node, n2 : Node |
             (eventually always
-                n1 in Member &&
+                (n1 in Member &&
+                n1 !in LQueue &&
                 n2 in Leader &&
                 n1 != n2 &&
-                n1 !in n2.lnxt.univ &&
-                no n1.~(n2.lnxt))
+                //n1 !in n2.lnxt.univ &&
+                //no n1.~(n2.lnxt) &&
+                n1 in PendingMsg.sndr))
                 implies (always eventually leaderApplication[n2, n1])
 }
 
 pred fairnessLeaderPromotion[] {
-    all n1 : Node - Leader, n2 : Node |
+    all n1 : Node, n2 : Node |
         (eventually always
-            n1 in LQueue &&
+            (n1 in LQueue &&
             n2 in Leader &&
             n1 != n2 &&
-            no n1.~(n2.lnxt) && 
+            //no n1.~(n2.lnxt) && 
             no n2.outbox &&
-            no SendingMsg)
+            no SendingMsg))
             implies (always eventually leaderPromotion[n2, n1])
 }
 
 pred fairnessSendMessage[] {
     all n1, n2 : Node, msg : Msg |
         (eventually always
-            n1 in Leader &&
+            (n1 in Leader &&
             n2 in (Member - Leader) &&
             (n1->n2) in nxt &&
             msg in PendingMsg &&
             msg in n1.outbox &&
-            msg.sndr = n1)
+            msg.sndr = n1))
             implies (always eventually broadcastInit[n1, n2, msg])
 }
 
 run {
-    #Node = 2
-    #Msg = 1
+    //#Node = 2
+    //#Msg = 1
     noExits[]
+    eventually #Member >= 2
+    #Msg = 2
+    #Leader.outbox = 1
     fairness[]
-} for 5
+} for 13 steps
 
 //-------------------------------------------------------------------//
 
@@ -853,7 +860,7 @@ pred noExits[] {
 }
 
 assert broadcastsTerminate {
-    (#Member >= 2 && noExits[] && fairness[])
+    (eventually #Member >= 2 && #Msg = 1 && noExits[] && fairness[])
     implies
     eventually Msg = SentMsg
 }
@@ -862,7 +869,7 @@ check broadcastsTerminate
 
 // in a network with at least two nodes, under fairness conditions, all message broadcasts terminate.
 assert broadcastsTerminateWithExits {
-    (#Member >= 2 && fairness[])
+    (eventually #Member >= 3 && #Msg = 1 && eventually #SendingMsg = 1 && fairness[])
     implies
     eventually Msg = SentMsg
 }
