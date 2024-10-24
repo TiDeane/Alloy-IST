@@ -694,7 +694,7 @@ pred topologyValid[] {
 }
 
 pred messageValid[] {
-        // a message is only in one member's outbox at a time
+    // a message is only in one member's outbox at a time
     all m : Msg |
         lone n : Member |
         m in n.outbox
@@ -708,9 +708,8 @@ pred messageValid[] {
     // a pending message can't have been received by any node
     no PendingMsg.rcvrs
 
-    // a sending message hasn't been received by every member
-    all s : SendingMsg |
-        s.rcvrs != Member
+    // the Leader is the sender of every sending message
+    Leader = SendingMsg.sndr 
     
     // a sending message has been received by at least one node
     all s : SendingMsg |
