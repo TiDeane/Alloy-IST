@@ -102,15 +102,16 @@ fact {
 // if the leader queue isn't empty then it ends on the leader
 fact {
   (Leader.lnxt.univ != none)
-  implies
-  (one m : Member |
-    (m -> Leader) in Leader.lnxt)
+    implies
+    (one m : Member |
+      (m -> Leader) in Leader.lnxt)
 }
 
 // a node is in the leader queue only if it has messages to send
 fact {
   all lq : LQueue | lq in PendingMsg.sndr
 }
+
 
 //-------------------------------------------------------------------//
 
@@ -195,8 +196,7 @@ fact {
   // a sending message has been received by at least one node
   fact {
     all s : SendingMsg |
-      some n : Node |
-        n in s.rcvrs
+      some s.rcvrs
   }
 
 // a sending message is in at least one member's outbox
@@ -214,8 +214,7 @@ fact {
 // a sent message has been received by at least one node
 fact {
   all s : SentMsg |
-    some n : Node |
-      n in s.rcvrs
+    some s.rcvrs
 }
 
 // the outbox can only contain pending messages of itself and
@@ -244,12 +243,9 @@ fact {
     m.sndr !in m.rcvrs
 }
 
-// note: intuitively, a sent message has been received by every member...
-// but considering nodes can stop being members, there can be static states
-// where a non member received a SentMsg and a (new) member didn't
-
 
 //-------------------------------------------------------------------//
+
 
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
@@ -259,12 +255,17 @@ fun visualizeLeaderQ[] : Node -> lone Node {
   Leader.lnxt
 }
 
+
+//-------------------------------------------------------------------//
+
+
 pred trace1[] {
   #Node >= 5
+  #Member >= 3
   #LQueue >= 1
-  #SentMsg >= 1
-  #SendingMsg >= 1
-  #PendingMsg >= 1
+  #SentMsg = 1
+  #SendingMsg = 1
+  #PendingMsg = 1
 
   // at least two members have non-empty member queues
   some m1, m2 : Member |
@@ -275,5 +276,26 @@ pred trace1[] {
       (n2 -> m2) in m2.qnxt
 }
 
-
+// Ex1.2.1.png
 run { trace1[] } for 8
+
+
+pred trace2[] {
+  #Node >= 7
+  #Member >= 4
+  #LQueue >= 2
+  #SentMsg = 1
+  #SendingMsg = 1
+  #PendingMsg = 2
+
+  // at least two members have non-empty member queues
+  some m1, m2 : Member |
+    m1 != m2 &&
+    some n1, n2 : Node - Member |
+      n1 != n2 &&
+      (n1 -> m1) in m1.qnxt &&
+      (n2 -> m2) in m2.qnxt
+}
+
+// Ex1.2.2.png
+run { trace2[] } for 12

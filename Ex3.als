@@ -22,19 +22,6 @@ var sig SentMsg, SendingMsg, PendingMsg in Msg {}
 
 //-------------------------------------------------------------------//
 
-pred stutter[] {
-    Member' = Member
-    Leader' = Leader
-    LQueue' = LQueue
-    SentMsg' = SentMsg
-    SendingMsg' = SendingMsg
-    PendingMsg' = PendingMsg
-    outbox' = outbox
-    nxt' = nxt
-    qnxt' = qnxt
-    lnxt' = lnxt
-    rcvrs' = rcvrs
-}
 
 pred init[] {
     // the set of members consists only of the leader
@@ -53,6 +40,20 @@ pred init[] {
     no PendingMsg.rcvrs
     all pmsg : PendingMsg, n : Node | pmsg.sndr = n iff pmsg in n.outbox
     //all msg : Msg | msg.sndr !in msg.rcvrs
+}
+
+pred stutter[] {
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    lnxt' = lnxt
+    rcvrs' = rcvrs
 }
 
 pred trans[] {
@@ -87,7 +88,9 @@ fact {
     system[]
 }
 
+
 //-------------------------------------------------------------------//
+
 
 pred memberApplication[m : Member, n : Node] {
     memberApplicationAux1[m, n]
@@ -320,7 +323,6 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
     no l.outbox
     // no message currently being broadcast
     no SendingMsg
-    // these 3 are probably uneeded?
     // l is not lq1
     l != lq1
     // l is not lq2
@@ -388,7 +390,6 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // preconditions
     // n is in m member queue
     (n1->n2) in m.qnxt
-    //n1 in m.^(~(m.qnxt))
     // n1 is not a member
     n1 !in Member
     // n1 is the last node of the member queue
@@ -446,13 +447,13 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
 
 pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // preconditions
-    m != l // TODO: is this one needed?
+    m != l
+    // l points to m
     (l->m) in nxt
     // msg is a pending message
     msg in PendingMsg
     // msg is only in the leader's outbox
     msg in l.outbox
-    msg !in m.outbox // TODO: is this needed?
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -473,7 +474,7 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
 // m1 redirects message to m2
 pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // preconditions
-    m1 != m2 // TODO: is this one needed?
+    m1 != m2
     // m1 points to m2
     (m1->m2) in nxt
     // m2 isn't the leader
@@ -482,8 +483,6 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     Msg in SendingMsg
     // msg is in m1's outbox
     msg in m1.outbox
-    // msg isn't in m2's outbox
-    msg !in m2.outbox // TODO: is this one needed?
 
     // postconditions
     outbox' = outbox - (m1->msg) + (m2->msg)
@@ -503,15 +502,13 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
 
 pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // preconditions
-    l != m // TODO: is this one needed?
+    l != m
     // m points to l
     (m->l) in nxt
     // msg is a sending message
     msg in SendingMsg
     // msg is in m's outbox
     msg in m.outbox
-    // msg isn't in l's outbox
-    msg !in l.outbox // TODO: is this one needed?
 
     // postconditions
     SendingMsg' = SendingMsg - msg
@@ -527,65 +524,6 @@ pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     nxt' = nxt
     qnxt' = qnxt
     lnxt' = lnxt
-}
-
-
-//-------------------------------------------------------------------//
-
-
-pred trace1[] {
-    eventually some m : Member, n : Node | memberApplicationAux1[m, n]
-}
-pred trace2[] {
-    eventually some m : Member, n1, n2 : Node | memberApplicationAux2[m, n1, n2]
-}
-
-pred trace3[] {
-    eventually some m : Member, n : Node | memberPromotionAux1[m, n]
-}
-
-pred trace4[] {
-    eventually some m : Member, n1, n2 : Node | memberPromotionAux2[m, n1, n2]
-}
-
-pred trace5[] {
-    eventually some l : Leader, m : Member | leaderApplicationAux1[l, m]
-}
-
-pred trace6[] {
-    eventually some l : Leader, m1, m2 : Member | leaderApplicationAux2[l, m1, m2]
-}
-
-pred trace7[] {
-    eventually some l : Leader, lq : LQueue | leaderPromotionAux1[l, lq]
-}
-
-pred trace8[] {
-    eventually some l : Leader, lq1, lq2 : LQueue | leaderPromotionAux2[l, lq1, lq2]
-}
-
-pred trace9[] {
-    eventually some m1, m2 : Member | memberExit[m1, m2]
-}
-
-pred trace10[] {
-    eventually some m : Member, n1, n2 : Node | nonMemberExitAux1[m, n1, n2]
-}
-
-pred trace11[] {
-    eventually some m : Member, n1, n2, n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
-}
-
-pred trace12[] {
-    eventually some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
-}
-
-pred trace13[] {
-    eventually some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
-}
-
-pred trace14[] {
-    eventually some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
 }
 
 
@@ -687,7 +625,7 @@ pred topologyValid[] {
     // nodes can only appear in one member queue at a time
     all n : Node | 
         lone m : Member | 
-        n in m.qnxt.univ
+            n in m.qnxt.univ
 
     // the member queue functions as a queue
     all n1, n2 : Node | 
@@ -703,7 +641,7 @@ pred messageValid[] {
     // a message is only in one member's outbox at a time
     all m : Msg |
         lone n : Member |
-        m in n.outbox
+            m in n.outbox
 
     // a pending message is only in its sender's outbox
     all p : PendingMsg | 
@@ -721,8 +659,7 @@ pred messageValid[] {
     
     // a sending message has been received by at least one node
     all s : SendingMsg |
-        some n : Node |
-            n in s.rcvrs
+        some s.rcvrs
         
     // a sending message is in exactly one member's outbox
     all s : SendingMsg |
@@ -734,8 +671,7 @@ pred messageValid[] {
 
     // a sent message has been received by at least one node
     all s : SentMsg |
-        some n : Node |
-            n in s.rcvrs
+        some s.rcvrs
     
     // a message is either pending, sending or sent
     no (PendingMsg & SendingMsg)
@@ -769,6 +705,7 @@ pred valid[] {
 }
 
 
+// Valid holds
 check {
     always valid[]
 }
@@ -807,7 +744,6 @@ pred fairnessMemberApplication[] {
 }
 
 pred fairnessMemberPromotion[] {
-    // seems to be the same as "n1 : Node - Member"
     all n1, n2 : Node |
         (eventually always
             (n1 !in Member &&
@@ -817,7 +753,6 @@ pred fairnessMemberPromotion[] {
 }
 
 pred fairnessLeaderApplication[] {
-    // seems to be the same as "n1 : Node - Member"
     all n1, n2 : Node |
         (eventually always
             (n1 in Member &&
@@ -872,16 +807,6 @@ pred fairnessTerminateBroadcast[] {
             implies (always eventually terminateBroadcast[n2, n1, msg])
 }
 
-run {
-    //#Node = 2
-    //#Msg = 1
-    noExits[]
-    eventually #Member >= 2
-    #Msg = 2
-    #Leader.outbox = 1
-    all n : Node | #n.outbox = 1
-    fairness[]
-} for 13 steps
 
 //-------------------------------------------------------------------//
 
@@ -894,46 +819,24 @@ pred noExits[] {
         memberExit[m1, m2]
 }
 
-// Liveness condition 3.(a)
+// Liveness condition 3.3.(a)
 assert broadcastsTerminate {
     (eventually #Member >= 2 && #Msg = 1 && noExits[] && fairness[])
     implies
     eventually Msg = SentMsg
 }
 
-// Assertion holds
+// Assertion holds 3.3(a)
 check broadcastsTerminate
 
 
-// Liveness condition 4.
+// Liveness condition 3.4
 assert broadcastsTerminateWithExits {
     (eventually #Member >= 2 && #Msg = 1 && fairness[])
     implies
     eventually Msg = SentMsg
 }
 
-// Assertion doesn't hold
+// Assertion doesn't hold 3.4
+// Ex3.png
 check broadcastsTerminateWithExits
-
-
-//-------------------------------------------------------------------//
-
-
-run {
-    //trace1[]
-    //trace2[]
-    //trace3[]
-    //trace4[]
-    //trace5[]
-    //trace6[]
-    //trace7[]
-    trace8[]
-    //trace9[]
-    //trace10[]
-    //trace11[]
-    //trace12[]
-    //trace13[]
-    //trace14[]
-    #Node = 3
-    #Msg = 1
-} for 5

@@ -20,21 +20,9 @@ sig Msg {
 
 var sig SentMsg, SendingMsg, PendingMsg in Msg {}
 
+
 //-------------------------------------------------------------------//
 
-pred stutter[] {
-    Member' = Member
-    Leader' = Leader
-    LQueue' = LQueue
-    SentMsg' = SentMsg
-    SendingMsg' = SendingMsg
-    PendingMsg' = PendingMsg
-    outbox' = outbox
-    nxt' = nxt
-    qnxt' = qnxt
-    lnxt' = lnxt
-    rcvrs' = rcvrs
-}
 
 pred init[] {
     // the set of members consists only of the leader
@@ -52,7 +40,20 @@ pred init[] {
     Msg = PendingMsg
     no PendingMsg.rcvrs
     all pmsg : PendingMsg, n : Node | pmsg.sndr = n iff pmsg in n.outbox
-    //all msg : Msg | msg.sndr !in msg.rcvrs
+}
+
+pred stutter[] {
+    Member' = Member
+    Leader' = Leader
+    LQueue' = LQueue
+    SentMsg' = SentMsg
+    SendingMsg' = SendingMsg
+    PendingMsg' = PendingMsg
+    outbox' = outbox
+    nxt' = nxt
+    qnxt' = qnxt
+    lnxt' = lnxt
+    rcvrs' = rcvrs
 }
 
 pred trans[] {
@@ -87,10 +88,11 @@ fact {
     system[]
 }
 
+
 //-------------------------------------------------------------------//
 
+
 pred memberApplication[m : Member, n : Node] {
-    //m = Leader // to remove
     memberApplicationAux1[m, n]
     or
     some n2 : Node | memberApplicationAux2[m, n, n2]
@@ -321,7 +323,6 @@ pred leaderPromotionAux2[l : Leader, lq1 : LQueue, lq2 : LQueue] {
     no l.outbox
     // no message currently being broadcast
     no SendingMsg
-    // these 3 are probably uneeded?
     // l is not lq1
     l != lq1
     // l is not lq2
@@ -389,7 +390,6 @@ pred nonMemberExitAux1[m : Member, n1 : Node, n2 : Node] {
     // preconditions
     // n is in m member queue
     (n1->n2) in m.qnxt
-    //n1 in m.^(~(m.qnxt))
     // n1 is not a member
     n1 !in Member
     // n1 is the last node of the member queue
@@ -447,13 +447,13 @@ pred nonMemberExitAux2[m : Member, n1 : Node, n2 : Node, n3 : Node] {
 
 pred broadcastInit[l : Leader, m : Member, msg: Msg] {
     // preconditions
-    m != l // TODO: is this one needed?
+    m != l
+    // l points to m
     (l->m) in nxt
     // msg is a pending message
     msg in PendingMsg
     // msg is only in the leader's outbox
     msg in l.outbox
-    msg !in m.outbox // TODO: is this needed?
 
     // postconditions
     PendingMsg' = PendingMsg - msg
@@ -474,7 +474,7 @@ pred broadcastInit[l : Leader, m : Member, msg: Msg] {
 // m1 redirects message to m2
 pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     // preconditions
-    m1 != m2 // TODO: is this one needed?
+    m1 != m2
     // m1 points to m2
     (m1->m2) in nxt
     // m2 isn't the leader
@@ -483,8 +483,6 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
     Msg in SendingMsg
     // msg is in m1's outbox
     msg in m1.outbox
-    // msg isn't in m2's outbox
-    msg !in m2.outbox // TODO: is this one needed?
 
     // postconditions
     outbox' = outbox - (m1->msg) + (m2->msg)
@@ -504,15 +502,13 @@ pred redirectMessage[m1 : Member, m2 : Member, msg : Msg] {
 
 pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
     // preconditions
-    l != m // TODO: is this one needed?
+    l != m
     // m points to l
     (m->l) in nxt
     // msg is a sending message
     msg in SendingMsg
     // msg is in m's outbox
     msg in m.outbox
-    // msg isn't in l's outbox
-    msg !in l.outbox // TODO: is this one needed?
 
     // postconditions
     SendingMsg' = SendingMsg - msg
@@ -534,65 +530,6 @@ pred terminateBroadcast[l : Leader, m : Member, msg : Msg] {
 //-------------------------------------------------------------------//
 
 
-pred trace1[] {
-    eventually some m : Member, n : Node | memberApplicationAux1[m, n]
-}
-pred trace2[] {
-    eventually some m : Member, n1, n2 : Node | memberApplicationAux2[m, n1, n2]
-}
-
-pred trace3[] {
-    eventually some m : Member, n : Node | memberPromotionAux1[m, n]
-}
-
-pred trace4[] {
-    eventually some m : Member, n1, n2 : Node | memberPromotionAux2[m, n1, n2]
-}
-
-pred trace5[] {
-    eventually some l : Leader, m : Member | leaderApplicationAux1[l, m]
-}
-
-pred trace6[] {
-    eventually some l : Leader, m1, m2 : Member | leaderApplicationAux2[l, m1, m2]
-}
-
-pred trace7[] {
-    eventually some l : Leader, lq : LQueue | leaderPromotionAux1[l, lq]
-}
-
-pred trace8[] {
-    eventually some l : Leader, lq1, lq2 : LQueue | leaderPromotionAux2[l, lq1, lq2]
-}
-
-pred trace9[] {
-    eventually some m1, m2 : Member | memberExit[m1, m2]
-}
-
-pred trace10[] {
-    eventually some m : Member, n1, n2 : Node | nonMemberExitAux1[m, n1, n2]
-}
-
-pred trace11[] {
-    eventually some m : Member, n1, n2, n3 : Node | nonMemberExitAux2[m, n1, n2, n3]
-}
-
-pred trace12[] {
-    eventually some l : Leader, m : Member, msg : Msg | broadcastInit[l, m, msg]
-}
-
-pred trace13[] {
-    eventually some m1 : Member, m2 : Member, msg : Msg | redirectMessage[m1, m2, msg]
-}
-
-pred trace14[] {
-    eventually some l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg]
-}
-
-
-//-------------------------------------------------------------------//
-
-
 fun visualizeMemberQ[] : Node -> lone Node {
   Member.qnxt
 }
@@ -605,20 +542,44 @@ fun visualizeLeaderQ[] : Node -> lone Node {
 //-------------------------------------------------------------------//
 
 
+pred trace1[] {
+    #Node >= 5
+    #Msg = 1
+
+    (eventually one m : Member, n : Node | memberPromotion[m, n])
+
+    (eventually one l : Leader, lq : LQueue | leaderPromotion[l, lq])
+
+    (eventually one l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg])
+
+    (eventually one m1, m2 : Member | memberExit[m1, m2])
+
+    (eventually one m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2])
+}
+
+// Ex2.2.1.png
 run {
-    //trace1[]
-    //trace2[]
-    //trace3[]
-    //trace4[]
-    //trace5[]
-    //trace6[]
-    //trace7[]
-    //trace8[]
-    trace9[]
-    //trace10[]
-    //trace11[]
-    //trace12[]
-    //trace13[]
-    //trace14[]
-    //#Node = 2
-} for 5
+    trace1[]
+} for 5 but 1 Msg
+
+
+pred trace2[] {
+    #Node >= 5
+    #Leader.outbox = 1
+    #Msg = 2
+
+    (eventually one m : Member, n : Node | memberPromotion[m, n])
+
+    (eventually one l : Leader, lq : LQueue | leaderPromotion[l, lq])
+
+    (eventually one l : Leader, m : Member, msg : Msg | terminateBroadcast[l, m, msg])
+
+    (eventually one m1, m2 : Member | memberExit[m1, m2])
+
+    (eventually one m : Member, n1, n2 : Node | nonMemberExit[m, n1, n2])
+}
+
+// Ex2.2.2.png
+run {
+    trace2[]
+} for 5 but 2 Msg
